@@ -289,10 +289,10 @@ public abstract class KeyInputQueue {
                                 di.mAbs.down = ev.value != 0;
                             }
                             if (ev.scancode == RawInputEvent.BTN_MOUSE &&
-                                    (classes&RawInputEvent.CLASS_TRACKBALL) != 0) {
+                                (((classes&RawInputEvent.CLASS_TRACKBALL) != 0) ||
+                                 ((classes&RawInputEvent.CLASS_MOUSE) != 0))) {                             
                                 di.mRel.changed = true;
                                 di.mRel.down = ev.value != 0;
-                                send = true;
                             }
     
                         } else if (ev.type == RawInputEvent.EV_ABS &&
@@ -312,7 +312,8 @@ public abstract class KeyInputQueue {
                             }
     
                         } else if (ev.type == RawInputEvent.EV_REL &&
-                                (classes&RawInputEvent.CLASS_TRACKBALL) != 0) {
+                                   (((classes&RawInputEvent.CLASS_TRACKBALL) != 0) ||
+                                    ((classes&RawInputEvent.CLASS_MOUSE) != 0))) {
                             // Add this relative movement into our totals.
                             if (ev.scancode == RawInputEvent.REL_X) {
                                 di.mRel.changed = true;
@@ -346,8 +347,13 @@ public abstract class KeyInputQueue {
                                 if (false) Log.v(TAG, "Relative: x=" + di.mRel.x
                                         + " y=" + di.mRel.y + " ev=" + me);
                                 if (me != null) {
-                                    addLocked(di, curTime, ev.flags,
-                                            RawInputEvent.CLASS_TRACKBALL, me);
+                                    if ((classes & RawInputEvent.CLASS_TRACKBALL) != 0) {
+                                        addLocked(di, curTime, ev.flags,
+                                                  RawInputEvent.CLASS_TRACKBALL, me);
+                                    } else {
+                                        addLocked(di, curTime, ev.flags,
+						  RawInputEvent.CLASS_MOUSE, me);
+                                    }
                                 }
                             }
                         }

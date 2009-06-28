@@ -119,6 +119,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 
+import android.graphics.Canvas;
+import android.graphics.Path;
+
 /** {@hide} */
 public class WindowManagerService extends IWindowManager.Stub implements Watchdog.Monitor {
     static final String TAG = "WindowManager";
@@ -308,6 +311,12 @@ public class WindowManagerService extends IWindowManager.Stub implements Watchdo
     long mLastDimAnimTime;
     Surface mBlurSurface;
     boolean mBlurShown;
+    Surface mMouseSurface;
+    int mShowMouse = 0;
+    int mMlx;
+    int mMly;
+    int mMlw;
+    int mMlh;
     
     int mTransactionSequence = 0;
     
@@ -4568,6 +4577,8 @@ public class WindowManagerService extends IWindowManager.Stub implements Watchdo
                             final int touchFlags = flags &
                                 (WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                                 |WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
+                            Log.i(TAG, "tmpRect.left " + tmpRect.left + " top " + tmpRect.top
+                                        + " right " + tmpRect.right + " bottom " + tmpRect.bottom);
                             if (tmpRect.contains(x, y) || touchFlags == 0) {
                                 //Log.i(TAG, "Using this target!");
                                 if (!screenWasOff || (flags &
@@ -5080,7 +5091,8 @@ public class WindowManagerService extends IWindowManager.Stub implements Watchdo
                         if (ev.classType == RawInputEvent.CLASS_TOUCHSCREEN) {
                             eventType = eventType((MotionEvent)ev.event);
                         } else if (ev.classType == RawInputEvent.CLASS_KEYBOARD ||
-                                    ev.classType == RawInputEvent.CLASS_TRACKBALL) {
+                                   ev.classType == RawInputEvent.CLASS_TRACKBALL || 
+                                   ev.classType == RawInputEvent.CLASS_MOUSE) {
                             eventType = LocalPowerManager.BUTTON_EVENT;
                         } else {
                             eventType = LocalPowerManager.OTHER_EVENT;
@@ -5118,6 +5130,44 @@ public class WindowManagerService extends IWindowManager.Stub implements Watchdo
                             case RawInputEvent.CLASS_TOUCHSCREEN:
                                 //Log.i(TAG, "Read next event " + ev);
                                 dispatchPointer(ev, (MotionEvent)ev.event, 0, 0);
+                                break;
+                            case RawInputEvent.CLASS_MOUSE:
+                                MotionEvent mmev = (MotionEvent)ev.event;
+                                int mcx = mMlx + (int)(mmev.getX()* mmev.getXPrecision());
+                                int mcy = mMly + (int)(mmev.getY()* mmev.getYPrecision());
+                                mcx = ((mcx < 0) ? 0 :(mcx >= mDisplay.getWidth() ?(mDisplay.getWidth()-1):mcx));
+                                mcy = ((mcy < 0) ? 0 :(mcy >= mDisplay.getHeight()?(mDisplay.getHeight() - 1):mcy));
+                                
+                                mmev.setLocation((float) mcx, (float) mcy);
+                                dispatchPointer(ev, mmev, 0, 0);
+                                if (mMouseSurface != null && (mMlx != mcx || mMly != mcy)) {                                                
+                                    // Should we use lock? synchronized(mWindowMap) {
+                                    Surface.openTransaction();
+                                    if (DEBUG_INPUT)
+                                        Log.i(TAG, 
+                                              "Open transaction for the mouse surface");
+                                    WindowState top = 
+                                        (WindowState)mWindows.get(mWindows.size() - 1);
+                                    try {
+                                        if (DEBUG_INPUT)
+                                            Log.i(TAG, "Move surf, x: " +  
+                                                  Integer.toString(mcx) + " y:" 
+                                                  + Integer.toString(mcy));
+                                        
+                                        mMouseSurface.setPosition(mcx,mcy);
+                                        mMouseSurface.setLayer(top.mAnimLayer + 1);
+                                        if (mShowMouse != 1) {
+                                            mMouseSurface.show();
+                                            mShowMouse = 1;
+                                        }
+                                        mMlx = mcx;
+                                        mMly = mcy;
+                                    } catch ( RuntimeException e) {
+                                        Log.e(TAG, "Failure showing mouse surface",e);
+                                    }
+                                    Surface.closeTransaction();
+                                }
+                                
                                 break;
                             case RawInputEvent.CLASS_TRACKBALL:
                                 dispatchTrackball(ev, (MotionEvent)ev.event, 0, 0);
@@ -7572,6 +7622,57 @@ public class WindowManagerService extends IWindowManager.Stub implements Watchdo
         if (mFxSession == null) {
             mFxSession = new SurfaceSession();
         }
+
+        if (mMouseSurface == null) {
+            int mMx, mMy, mMw, mMh;
+            Canvas mCanvas;
+            Path mPath = new Path();
+
+            if (DEBUG_INPUT)
+                Log.i(TAG, "Create Mouse Surface");
+            
+            mMw = 20;
+            mMh = 20;
+            mMx = (mDisplay.getWidth() - mMw) / 2;
+            mMy = (mDisplay.getHeight() - mMh) / 2;
+            
+            try {
+               
+                /*
+                 *First Mouse event, create Surface
+                 */
+                
+                mMouseSurface =
+                    new Surface(mFxSession,
+                                0,-1,mMw,mMh,
+                                PixelFormat.TRANSPARENT,
+                                Surface.FX_SURFACE_NORMAL);
+                mCanvas = mMouseSurface.lockCanvas(null);
+                mCanvas.drawColor(0x0);
+
+                
+                
+                mPath.moveTo(0.0f,0.0f);
+                mPath.lineTo(16.0f, 0.0f);
+                mPath.lineTo(0.0f, 16.0f);
+                mPath.close();
+                mCanvas.clipPath(mPath);
+                mCanvas.drawColor(0x66666666);
+
+                mMouseSurface.unlockCanvasAndPost(mCanvas);
+                mMouseSurface.openTransaction();      
+                mMouseSurface.setSize(mMw,mMh);
+                mMouseSurface.closeTransaction();
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Exception creating mouse surface",e);
+            }
+            mMlx = mMx;
+            mMly = mMy;
+            mMlw = mMw;
+            mMlh = mMh;
+        }
+        
         
         if (SHOW_TRANSACTIONS) Log.i(TAG, ">>> OPEN TRANSACTION");
 
