@@ -267,6 +267,8 @@ class BatteryService extends Binder {
         
         int icon = getIcon(mBatteryLevel);
 
+	/* HMP10 workaround */
+	mBatteryLevel = 100;
         intent.putExtra("status", mBatteryStatus);
         intent.putExtra("health", mBatteryHealth);
         intent.putExtra("present", mBatteryPresent);
