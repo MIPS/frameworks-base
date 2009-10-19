@@ -1669,6 +1669,7 @@ class PowerManagerService extends IPowerManager.Stub implements LocalPowerManage
 
     boolean screenIsOn() {
         synchronized (mLocks) {
+	    mPowerState |= SCREEN_ON_BIT;
             return (mPowerState & SCREEN_ON_BIT) != 0;
         }
     }
