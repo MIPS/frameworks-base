@@ -1,6 +1,7 @@
 #ifndef AIDL_AST_H
 #define AIDL_AST_H
 
+#include <cstdio>
 #include <string>
 #include <vector>
 #include <set>
