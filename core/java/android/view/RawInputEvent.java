@@ -13,6 +13,7 @@ public class RawInputEvent {
     public static final int CLASS_ALPHAKEY = 0x00000002;
     public static final int CLASS_TOUCHSCREEN = 0x00000004;
     public static final int CLASS_TRACKBALL = 0x00000008;
+    public static final int CLASS_MOUSE= 0x00000010;
     
     // More special classes for QueuedEvent below.
     public static final int CLASS_CONFIGURATION_CHANGED = 0x10000000;
