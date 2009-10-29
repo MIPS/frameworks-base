@@ -20,7 +20,8 @@ namespace android {
 
 int clz_impl(int32_t x)
 {
-#if defined(__arm__) && !defined(__thumb__)
+#if (defined(__arm__) && !defined(__thumb__)) || \
+  (defined(__mips) && (__mips==32) && (__mips_isa_rev>=2))
     return __builtin_clz(x);
 #else
     if (!x) return 32;
