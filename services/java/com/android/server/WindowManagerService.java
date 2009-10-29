@@ -61,6 +61,7 @@ import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.Region;
+import android.graphics.Paint;
 import android.os.BatteryStats;
 import android.os.Binder;
 import android.os.Debug;
@@ -4810,8 +4811,9 @@ public class WindowManagerService extends IWindowManager.Stub implements Watchdo
                             final int touchFlags = flags &
                                 (WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                                 |WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
-                            Log.i(TAG, "tmpRect.left " + tmpRect.left + " top " + tmpRect.top
-				  + " right " + tmpRect.right + " bottom " + tmpRect.bottom);
+                            if (DEBUG_INPUT)
+				Log.i(TAG, "tmpRect.left " + tmpRect.left + " top " + tmpRect.top
+				      + " right " + tmpRect.right + " bottom " + tmpRect.bottom);
                             if (tmpRect.contains(x, y) || touchFlags == 0) {
                                 //Log.i(TAG, "Using this target!");
                                 if (!screenWasOff || (flags &
@@ -5369,14 +5371,11 @@ public class WindowManagerService extends IWindowManager.Stub implements Watchdo
                                 break;
                             case RawInputEvent.CLASS_MOUSE:
                                 MotionEvent mmev = (MotionEvent)ev.event;
-                                int mcx = mMlx + (int)(mmev.getX()* mmev.getXPrecision());
-                                int mcy = mMly + (int)(mmev.getY()* mmev.getYPrecision());
-                                mcx = ((mcx < 0) ? 0 :(mcx >= mDisplay.getWidth() ?(mDisplay.getWidth()-1):mcx));
-                                mcy = ((mcy < 0) ? 0 :(mcy >= mDisplay.getHeight()?(mDisplay.getHeight() - 1):mcy));
+                                int mcx = (int)mmev.getX();
+                                int mcy = (int)mmev.getY();
 
-                                mmev.setLocation((float) mcx, (float) mcy);
-                                dispatchPointer(ev, mmev, 0, 0);
                                 if (mMouseSurface != null && (mMlx != mcx || mMly != mcy)) {
+
                                     // Should we use lock? synchronized(mWindowMap) {
                                     Surface.openTransaction();
                                     if (DEBUG_INPUT)
@@ -5403,6 +5402,7 @@ public class WindowManagerService extends IWindowManager.Stub implements Watchdo
                                     }
                                     Surface.closeTransaction();
                                 }
+                                dispatchPointer(ev, (MotionEvent)ev.event, 0, 0);
                                 break;
                             case RawInputEvent.CLASS_TRACKBALL:
                                 dispatchTrackball(ev, (MotionEvent)ev.event, 0, 0);
@@ -8015,6 +8015,7 @@ public class WindowManagerService extends IWindowManager.Stub implements Watchdo
             int mMx, mMy, mMw, mMh;
             Canvas mCanvas;
             Path mPath = new Path();
+            Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
             if (DEBUG_INPUT)
                 Log.i(TAG, "Create Mouse Surface");
@@ -8038,12 +8039,23 @@ public class WindowManagerService extends IWindowManager.Stub implements Watchdo
                 mCanvas = mMouseSurface.lockCanvas(null);
                 mCanvas.drawColor(0x0);
 
-                mPath.moveTo(0.0f,0.0f);
-                mPath.lineTo(16.0f, 0.0f);
-                mPath.lineTo(0.0f, 16.0f);
-                mPath.close();
-                mCanvas.clipPath(mPath);
-                mCanvas.drawColor(0x66666666);
+		mPath.moveTo(0.0f,   0.0f);
+		mPath.lineTo(0.0f,  17.0f);
+		mPath.lineTo(4.0f,  13.0f);
+		mPath.lineTo(7.0f,  19.0f);
+		mPath.lineTo(11.0f, 17.0f);
+		mPath.lineTo(8.0f,  11.0f);
+		mPath.lineTo(14.0f, 10.0f);
+		mPath.close();
+
+                mPaint.setColor(0xFF000000);
+                mPaint.setStyle(Paint.Style.FILL);
+                mCanvas.drawPath(mPath, mPaint);
+
+                mPaint.setColor(0xFFFFFFFF);
+                mPaint.setStrokeWidth(1);
+		mPaint.setStyle(Paint.Style.STROKE);
+		mCanvas.drawPath(mPath, mPaint);
 
                 mMouseSurface.unlockCanvasAndPost(mCanvas);
                 mMouseSurface.openTransaction();
