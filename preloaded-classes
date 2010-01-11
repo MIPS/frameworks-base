@@ -1033,12 +1033,6 @@ com.android.internal.os.ZygoteConnection$Arguments
 com.android.internal.os.ZygoteInit
 com.android.internal.os.ZygoteInit$MethodAndArgsCaller
 com.android.internal.policy.PolicyManager
-com.android.internal.policy.impl.PhoneLayoutInflater
-com.android.internal.policy.impl.PhoneWindow
-com.android.internal.policy.impl.PhoneWindow$DecorView
-com.android.internal.policy.impl.PhoneWindow$DrawableFeatureState
-com.android.internal.policy.impl.PhoneWindow$PanelFeatureState$SavedState
-com.android.internal.policy.impl.PhoneWindowManager
 com.android.internal.policy.impl.Policy
 com.android.internal.preference.YesNoPreference
 com.android.internal.telephony.DefaultPhoneNotifier
