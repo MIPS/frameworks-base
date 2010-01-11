@@ -558,7 +558,8 @@ public abstract class KeyInputQueue {
                             
                             // Trackball (mouse) protocol: press down or up.
                             } else if (ev.scancode == RawInputEvent.BTN_MOUSE &&
-                                    (classes&RawInputEvent.CLASS_TRACKBALL) != 0) {
+                                    (((classes&RawInputEvent.CLASS_TRACKBALL) != 0) ||
+					((classes&RawInputEvent.CLASS_MOUSE) != 0))) {
                                 di.mRel.changed = true;
                                 di.mRel.mNextNumPointers = ev.value != 0 ? 1 : 0;
                                 send = true;
@@ -614,7 +615,8 @@ public abstract class KeyInputQueue {
     
                         // Process movement events from trackball (mouse) protocol.
                         } else if (ev.type == RawInputEvent.EV_REL &&
-                                (classes&RawInputEvent.CLASS_TRACKBALL) != 0) {
+                                (((classes&RawInputEvent.CLASS_TRACKBALL) != 0) ||
+				((classes&RawInputEvent.CLASS_MOUSE) != 0))) {
                             // Add this relative movement into our totals.
                             if (ev.scancode == RawInputEvent.REL_X) {
                                 di.mRel.changed = true;
@@ -749,8 +751,13 @@ public abstract class KeyInputQueue {
                                             + di.mRel.mNextData[MotionEvent.SAMPLE_Y]
                                             + " ev=" + me);
                                     if (me != null) {
-                                        addLocked(di, curTimeNano, ev.flags,
-                                                RawInputEvent.CLASS_TRACKBALL, me);
+					if ((classes & RawInputEvent.CLASS_TRACKBALL) != 0) {
+                                        	addLocked(di, curTimeNano, ev.flags,
+                                                	RawInputEvent.CLASS_TRACKBALL, me);
+					} else {
+                                                addLocked(di, curTimeNano, ev.flags,
+                                                	RawInputEvent.CLASS_MOUSE, me);
+					}
                                     }
                                     
                                     ms.finish();
