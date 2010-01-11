@@ -354,7 +354,7 @@ namespace simd {
 /// different machines, this macro is convenient when defining overloads
 /// of size_t to use other types.
 ///
-#if defined(SIZE_T_IS_LONG) && !defined(__ARM_EABI__)
+#if defined(SIZE_T_IS_LONG) && !defined(__ARM_EABI__) && !defined(__mips__)
      #define NOT_SIZE_T_I_OR_L	unsigned int
 #else
     #define NOT_SIZE_T_I_OR_L	unsigned long

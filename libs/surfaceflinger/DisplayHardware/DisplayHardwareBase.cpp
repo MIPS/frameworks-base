@@ -221,7 +221,11 @@ DisplayHardwareBase::ConsoleManagerThread::ConsoleManagerThread(
     vm.mode = VT_PROCESS;
     vm.waitv = 0;
     vm.relsig = SIGUSR2;
+#if defined(SIGUNUSED)
     vm.acqsig = SIGUNUSED;
+#elif defined(SIGWINCH)
+    vm.acqsig = SIGWINCH;
+#endif
     vm.frsig = 0;
 
     struct sigaction act;
