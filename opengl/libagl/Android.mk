@@ -37,6 +37,11 @@ ifeq ($(TARGET_ARCH),arm)
 	LOCAL_CFLAGS += -fstrict-aliasing
 endif
 
+ifeq ($(TARGET_ARCH),mips)
+	#LOCAL_SRC_FILES += arch-$(TARGET_ARCH)/fixed_asm.S arch-$(TARGET_ARCH)/iterators.S
+	LOCAL_CFLAGS += -fstrict-aliasing
+endif
+
 ifneq ($(TARGET_SIMULATOR),true)
     # we need to access the private Bionic header <bionic_tls.h>
     LOCAL_C_INCLUDES += bionic/libc/private
