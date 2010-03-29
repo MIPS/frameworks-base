@@ -74,6 +74,27 @@ GLfixed vsquare3(GLfixed a, GLfixed b, GLfixed c)
         ); 
     return r;
 
+#elseif defined(__mips__) && defined(__MIPSEL__)
+	GLfixed res;
+	int32_t t1,t2,t3;
+	asm(
+    	"mult   %[a], %[a]          \r\n"
+    	"li     %[res],0x8000       \r\n"
+    	"move   %[t3],$zero         \r\n"
+    	"madd   %[b],%[b]           \r\n"/*add b*b*/
+    	"madd   %[c],%[c]           \r\n"/*add c*c*/
+    	"mflo	%[t1]               \r\n"
+    	"mfhi	%[t2]               \r\n"
+    	"addu   %[t1],%[res],%[t1]  \r\n"/*add 0x8000*/
+    	"sltu   %[t3],%[t1],%[res]  \r\n"/*overflow?*/
+        "addu   %[t2],%[t2],%[t3]   \r\n"
+    	"srl    %[res],%[t1],16     \r\n"
+        "sll    %[t2],%[t2],16      \r\n"
+    	"or     %[res],%[res],%[t2] \r\n"
+        :   [res]"=&r"(res),[t1]"=&r"(t1),[t2]"=&r"(t2),[t3]"=&r"(t3)
+        :   [a] "r" (a),[b] "r" (b),[c] "r" (c)
+        );
+    return res;
 #else
 
     return ((   int64_t(a)*a +
