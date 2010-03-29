@@ -38,8 +38,9 @@ ifeq ($(TARGET_ARCH),arm)
 endif
 
 ifeq ($(TARGET_ARCH),mips)
-	#LOCAL_SRC_FILES += arch-$(TARGET_ARCH)/fixed_asm.S arch-$(TARGET_ARCH)/iterators.S
-	LOCAL_SRC_FILES += arch-$(TARGET_ARCH)/fixed_asm.S
+	ifeq ($(TARGET_CPU_ENDIAN),EL)
+		LOCAL_SRC_FILES += arch-$(TARGET_ARCH)/fixed_asm.S
+	endif
 	LOCAL_CFLAGS += -fstrict-aliasing
 endif
 
