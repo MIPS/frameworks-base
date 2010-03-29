@@ -296,6 +296,49 @@ static inline GLfixed mla3a16_btb( GLfixed a0,
         ); 
     return r;
     
+#elseif defined(__mips__) && defined(__MIPSEL__)
+
+    int32_t b0,b1,res;
+    asm(
+        #if TARGET_CPU_ARCH == mips32r2
+        "seh %[b0],%[b1b0] \r\n"
+        #else
+        "sll %[b0],%[b1b0],16 \r\n"
+        "sra %[b0],%[b0],16 \r\n"
+        #endif
+        "mult %[a0],%[b0]\r\n"           /*[hi,lo] += a0*b0 */
+        "sra %[b1],%[b1b0],16 \r\n"
+        "lui %[b1b0],0xffff \r\n"
+        "mflo %[b0] \r\n"
+        "and %[b0],%[b0],%[b1b0] \r\n"  /*mask bit [0:16]*/
+        "mtlo %[b0] \r\n"
+        "madd %[a1],%[b1]\r\n \r\n"      /*[hi,lo] += a1*b1 */
+        #if TARGET_CPU_ARCH == mips32r2
+        "seh %[b2],%[b2] \r\n"
+        #else
+        "sll %[b2],%[b2],16 \r\n"
+        "sra %[b2],%[b2],16 \r\n"
+        #endif
+        "mflo %[b0] \r\n"
+        "and %[b0],%[b0],%[b1b0] \r\n"  /*mask bit [0:16]*/
+        "mtlo %[b0] \r\n"
+        "madd %[a2],%[b2]\r\n \r\n"     /*[hi,lo] += a2*b2 */
+        "andi %[shift],%[shift],0x1f \r\n" /*only keep bit [0:5] of shift*/
+        "subu %[b0],%[shift],1\r\n"     /*b0=shift-1*/
+        "mflo %[res] \r\n"              /*lo->res*/
+        "srl %[res],%[res],16 \r\n"     /*res = res >>16*/
+        "mfhi %[b1] \r\n"               /*hi->b1*/
+        "sll %[b1],%[b1],16 \r\n"       /*b1 = b1 <<16*/
+        "or %[res],%[res],%[b1] \r\n"   /*res = [hi,lo] >>16 */
+        "sll %[b1],%[res],1\r\n"          /*b1= res<<1*/
+        "sllv %[b1],%[b1],%[b0]\r\n"       /*b1= b1<<(shift-1)*/
+        "movn %[res],%[b1],%[shift] \r\n"   /*if shift!=0, then b1->res*/
+        "addu %[res],%[res],%[c]\r\n"       /*res = res + c*/
+        : [res]"=&r"(res) ,[b0]"=&r"(b0),[b1]"=&r"(b1)
+        : [a0] "r" (a0),[b1b0] "r" (b1b0),[a1] "r" (a1),[a2] "r" (a2),[b2] "r" (xxb2),[shift] "r" (shift),[c] "r" (c)
+        );
+    return res;
+
 #else
 
     int32_t accum;
@@ -337,6 +380,44 @@ static inline GLfixed mla3a16_btt( GLfixed a0,
         ); 
     return r;
     
+#elseif defined(__mips__) && defined(__MIPSEL__)
+
+    int32_t b0,b1,res;
+    asm(
+        #if TARGET_CPU_ARCH == mips32r2
+        "seh %[b0],%[b1b0] \r\n"
+        #else
+        "sll %[b0],%[b1b0],16 \r\n"
+        "sra %[b0],%[b0],16 \r\n"
+        #endif
+        "mult %[a0],%[b0]\r\n"           /*[hi,lo] += a0*b0 */
+        "sra %[b1],%[b1b0],16 \r\n"
+        "lui %[b1b0],0xffff \r\n"
+        "mflo %[b0] \r\n"
+        "and %[b0],%[b0],%[b1b0] \r\n"  /*mask bit [0:16]*/
+        "mtlo %[b0] \r\n"
+        "madd %[a1],%[b1]\r\n \r\n"      /*[hi,lo] += a1*b1 */
+        "sra %[b2],%[b2],16 \r\n"
+        "mflo %[b0] \r\n"
+        "and %[b0],%[b0],%[b1b0] \r\n"  /*mask bit [0:16]*/
+        "mtlo %[b0] \r\n"
+        "madd %[a2],%[b2]\r\n \r\n"     /*[hi,lo] += a2*b2 */
+        "andi %[shift],%[shift],0x1f \r\n" /*only keep bit [0:5] of shift*/
+        "subu %[b0],%[shift],1\r\n"     /*b0=shift-1*/
+        "mflo %[res] \r\n"              /*lo->res*/
+        "srl %[res],%[res],16 \r\n"     /*res = res >>16*/
+        "mfhi %[b1] \r\n"               /*hi->b1*/
+        "sll %[b1],%[b1],16 \r\n"       /*b1 = b1 <<16*/
+        "or %[res],%[res],%[b1] \r\n"   /*res = [hi,lo] >>16 */
+        "sll %[b1],%[res],1\r\n"          /*b1= res<<1*/
+        "sllv %[b1],%[b1],%[b0]\r\n"       /*b1= b1<<(shift-1)*/
+        "movn %[res],%[b1],%[shift] \r\n"   /*if shift!=0, then b1->res*/
+        "addu %[res],%[res],%[c]\r\n"       /*res = res + c*/
+        : [res]"=&r"(res) ,[b0]"=&r"(b0),[b1]"=&r"(b1)
+        : [a0] "r" (a0),[b1b0] "r" (b1b0),[a1] "r" (a1),[a2] "r" (a2),[b2] "r" (b2xx),[shift] "r" (shift),[c] "r" (c)
+        );
+    return res;
+
 #else
 
     int32_t accum;
@@ -373,6 +454,28 @@ static inline GLfixed mla3( GLfixed a0, GLfixed b0,
         :   "cc"
         ); 
     return r;
+
+#elseif defined(__mips__) && defined(__MIPSEL__)
+
+    GLfixed res;
+	int32_t t1,t2;
+    asm(
+    	"mult  %[a0],%[b0]       \r\n"
+    	"madd  %[a1],%[b1]       \r\n"
+    	"madd  %[a2],%[b2]       \r\n"
+    	"li    %[res],0x8000    \r\n"
+    	"mflo  %[t2]\r\n"
+        "addu  %[t2],%[res],%[t2] \r\n"
+        "sltu  %[t1],%[t2],%[res]  \r\n" /*overflow?*/
+    	"mfhi  %[res]\r\n"
+        "addu  %[t1],%[res],%[t1] \r\n"
+    	"srl    %[t2],%[t2],16\r\n"
+        "sll    %[t1],%[t1],16\r\n"
+        "or     %[res],%[t2],%[t1]\r\n"
+        :   [res]"=&r"(res),[t1]"=&r"(t1),[t2]"=&r"(t2)
+        :   [a0] "r" (a0),[b0] "r" (b0),[a1] "r" (a1),[b1] "r" (b1),[a2] "r" (a2),[b2] "r" (b2)
+        );
+    return res;
     
 #else
 
@@ -407,6 +510,29 @@ static inline GLfixed mla4( GLfixed a0, GLfixed b0,
         :   "cc"
         ); 
     return r;
+
+#elseif defined(__mips__) && defined(__MIPSEL__)
+
+    GLfixed res;
+	int32_t t1,t2;
+	asm(
+    	"mult  %[a0],%[b0]       \r\n"
+    	"madd  %[a1],%[b1]       \r\n"
+    	"madd  %[a2],%[b2]       \r\n"
+    	"madd  %[a3],%[b3]       \r\n"
+    	"li    %[res],0x8000    \r\n"
+    	"mflo  %[t2]\r\n"
+        "addu  %[t2],%[res],%[t2] \r\n"
+        "sltu  %[t1],%[t2],%[res]  \r\n" /*overflow?*/
+    	"mfhi  %[res]\r\n"
+        "addu  %[t1],%[res],%[t1] \r\n"
+    	"srl    %[t2],%[t2],16\r\n"
+        "sll    %[t1],%[t1],16\r\n"
+        "or     %[res],%[t2],%[t1]\r\n"
+        :   [res]"=&r"(res),[t1]"=&r"(t1),[t2]"=&r"(t2)
+        :   [a0] "r" (a0),[b0] "r" (b0),[a1] "r" (a1),[b1] "r" (b1),[a2] "r" (a2),[b2] "r" (b2),[a3] "r" (a3),[b3] "r" (b3)
+        );
+    return res;
     
 #else
 
