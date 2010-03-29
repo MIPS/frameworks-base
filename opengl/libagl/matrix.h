@@ -212,6 +212,49 @@ static inline GLfixed mla3a16( GLfixed a0, int32_t b1b0,
         ); 
     return r;
     
+#elseif defined(__mips__) && defined(__MIPSEL__)
+
+    int32_t b0,b1,res;
+    asm(
+        #if TARGET_CPU_ARCH == mips32r2
+        "seh %[b0],%[b1b0] \r\n"
+        #else
+        "sll %[b0],%[b1b0],16 \r\n"
+        "sra %[b0],%[b0],16 \r\n"
+        #endif
+        "mult %[a0],%[b0]\r\n"           /*[hi,lo] += a0*b0 */
+        "sra %[b1],%[b1b0],16 \r\n"
+        "lui %[b1b0],0xffff \r\n"
+        "mflo %[b0] \r\n"
+        "and %[b0],%[b0],%[b1b0] \r\n"  /*mask bit [0:16]*/
+        "mtlo %[b0] \r\n"
+        "madd %[a1],%[b1]\r\n \r\n"      /*[hi,lo] += a1*b1 */
+        #if TARGET_CPU_ARCH == mips32r2
+        "seh %[b2],%[b2] \r\n"
+        #else
+        "sll %[b2],%[b2],16 \r\n"
+        "sra %[b2],%[b2],16 \r\n"
+        #endif
+        "mflo %[b0] \r\n"
+        "and %[b0],%[b0],%[b1b0] \r\n"  /*mask bit [0:16]*/
+        "mtlo %[b0] \r\n"
+        "madd %[a2],%[b2]\r\n \r\n"     /*[hi,lo] += a2*b2 */
+        "andi %[shift],%[shift],0x1f \r\n" /*only keep bit [0:5] of shift*/
+        "subu %[b0],%[shift],1\r\n"     /*b0=shift-1*/
+        "mflo %[res] \r\n"              /*lo->res*/
+        "srl %[res],%[res],16 \r\n"     /*res = res >>16*/
+        "mfhi %[b1] \r\n"               /*hi->b1*/
+        "sll %[b1],%[b1],16 \r\n"       /*b1 = b1 <<16*/
+        "or %[res],%[res],%[b1] \r\n"   /*res = [hi,lo] >>16 */
+        "sll %[b1],%[res],1\r\n"          /*b1= res<<1*/
+        "sllv %[b1],%[b1],%[b0]\r\n"       /*b1= b1<<(shift-1)*/
+        "movn %[res],%[b1],%[shift] \r\n"   /*if shift!=0, then b1->res*/
+        "addu %[res],%[res],%[c]\r\n"       /*res = res + c*/
+        : [res]"=&r"(res) ,[b0]"=&r"(b0),[b1]"=&r"(b1)
+        : [a0] "r" (a0),[b1b0] "r" (b1b0),[a1] "r" (a1),[a2] "r" (a2),[b2] "r" (b2),[shift] "r" (shift),[c] "r" (c)
+        );
+    return res;
+    
 #else
 
     int32_t accum;
