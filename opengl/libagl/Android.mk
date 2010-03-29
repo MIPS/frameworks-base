@@ -39,6 +39,7 @@ endif
 
 ifeq ($(TARGET_ARCH),mips)
 	#LOCAL_SRC_FILES += arch-$(TARGET_ARCH)/fixed_asm.S arch-$(TARGET_ARCH)/iterators.S
+	LOCAL_SRC_FILES += arch-$(TARGET_ARCH)/fixed_asm.S
 	LOCAL_CFLAGS += -fstrict-aliasing
 endif
 
