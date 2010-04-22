@@ -230,39 +230,39 @@ public final class ActivityManagerService extends ActivityManagerNative implemen
     /**
      * How long we can hold the launch wake lock before giving up.
      */
-    static final int LAUNCH_TIMEOUT = 20*1000;
+    static final int LAUNCH_TIMEOUT = 40*1000;
 
     // How long we wait for a launched process to attach to the activity manager
     // before we decide it's never going to come up for real.
-    static final int PROC_START_TIMEOUT = 20*1000;
+    static final int PROC_START_TIMEOUT = 40*1000;
 
     // How long we wait until giving up on the last activity telling us it
     // is idle.
-    static final int IDLE_TIMEOUT = 20*1000;
+    static final int IDLE_TIMEOUT = 40*1000;
 
     // How long to wait after going idle before forcing apps to GC.
-    static final int GC_TIMEOUT = 10*1000;
+    static final int GC_TIMEOUT = 20*1000;
 
     // The minimum amount of time between successive GC requests for a process.
     static final int GC_MIN_INTERVAL = 60*1000;
 
     // How long we wait until giving up on an activity telling us it has
     // finished destroying itself.
-    static final int DESTROY_TIMEOUT = 20*1000;
+    static final int DESTROY_TIMEOUT = 40*1000;
     
     // How long we allow a receiver to run before giving up on it.
-    static final int BROADCAST_TIMEOUT = 20*1000;
+    static final int BROADCAST_TIMEOUT = 40*1000;
 
     // How long we wait for a service to finish executing.
-    static final int SERVICE_TIMEOUT = 40*1000;
+    static final int SERVICE_TIMEOUT = 80*1000;
 
     // How long a service needs to be running until restarting its process
     // is no longer considered to be a relaunch of the service.
-    static final int SERVICE_RESTART_DURATION = 10*1000;
+    static final int SERVICE_RESTART_DURATION = 20*1000;
 
     // How long a service needs to be running until it will start back at
     // SERVICE_RESTART_DURATION after being killed.
-    static final int SERVICE_RESET_RUN_DURATION = 120*1000;
+    static final int SERVICE_RESET_RUN_DURATION = 240*1000;
 
     // Multiplying factor to increase restart duration time by, for each time
     // a service is killed before it has run for SERVICE_RESET_RUN_DURATION.
@@ -279,7 +279,7 @@ public final class ActivityManagerService extends ActivityManagerNative implemen
     static final int MAX_SERVICE_INACTIVITY = 30*60*1000;
     
     // How long we wait until we timeout on key dispatching.
-    static final int KEY_DISPATCHING_TIMEOUT = 10*1000;
+    static final int KEY_DISPATCHING_TIMEOUT = 20*1000;
 
     // The minimum time we allow between crashes, for us to consider this
     // application to be bad and stop and its services and reject broadcasts.
