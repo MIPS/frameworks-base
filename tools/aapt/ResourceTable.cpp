@@ -1819,7 +1819,7 @@ uint32_t ResourceTable::getResId(const String16& package,
                            &specFlags);
     if (rid != 0) {
         if (onlyPublic) {
-            if ((specFlags & ResTable_typeSpec::SPEC_PUBLIC) == 0) {
+            if ((dtohl(specFlags) & ResTable_typeSpec::SPEC_PUBLIC) == 0) {
                 return 0;
             }
         }

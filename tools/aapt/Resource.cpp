@@ -1255,7 +1255,7 @@ static status_t writeLayoutClasses(
                             nclassName.string(), sym.name.string());
                     hasErrors = true;
                 }
-                isPublic = (typeSpecFlags&ResTable_typeSpec::SPEC_PUBLIC) != 0;
+                isPublic = (dtohl(typeSpecFlags)&ResTable_typeSpec::SPEC_PUBLIC) != 0;
             }
             idents.add(code);
             origOrder.add(code);
@@ -1400,8 +1400,8 @@ static status_t writeLayoutClasses(
                     package16.string(), package16.size(), &typeSpecFlags);
                 //printf("%s:%s/%s: 0x%08x\n", String8(package16).string(),
                 //    String8(attr16).string(), String8(name16).string(), typeSpecFlags);
-                const bool pub = (typeSpecFlags&ResTable_typeSpec::SPEC_PUBLIC) != 0;
-                
+                const bool pub = (dtohl(typeSpecFlags)&ResTable_typeSpec::SPEC_PUBLIC) != 0;
+
                 bool deprecated = false;
                 
                 fprintf(fp, "%s/**\n", indentStr);
