@@ -194,10 +194,10 @@ class BatteryService extends Binder {
         }
     }
 
-    //private native void native_update();
+    private native void native_update();
 
     private synchronized final void update() {
-        //native_update();
+        native_update();
 
         boolean logOutlier = false;
         long dischargeDuration = 0;
