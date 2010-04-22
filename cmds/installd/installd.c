@@ -15,7 +15,7 @@
 */
 
 #include "installd.h"
-
+#include <endian.h>
 
 #define BUFFER_MAX    1024  /* input buffer for commands */
 #define TOKEN_MAX     8     /* max number of arguments in buffer */
@@ -156,7 +156,7 @@ static int execute(int s, char cmd[BUFFER_MAX])
     char *arg[TOKEN_MAX+1];
     unsigned i;
     unsigned n = 0;
-    unsigned short count;
+    unsigned short count, le_count;
     int ret = -1;
 
 //    LOGI("execute('%s')\n", cmd);
@@ -201,8 +201,11 @@ done:
     if (n > BUFFER_MAX) n = BUFFER_MAX;
     count = n;
 
+    /* receiver expects count in little-endian order */
+    le_count = htole16(count);
+
 //    LOGI("reply: '%s'\n", cmd);
-    if (writex(s, &count, sizeof(count))) return -1;
+    if (writex(s, &le_count, sizeof(le_count))) return -1;
     if (writex(s, cmd, count)) return -1;
     return 0;
 }
@@ -240,6 +243,8 @@ int main(const int argc, const char *argv[]) {
                 LOGE("failed to read size\n");
                 break;
             }
+	    /* sender gives count in little-endian order */
+	    count = letoh16(count);
             if ((count < 1) || (count >= BUFFER_MAX)) {
                 LOGE("invalid size %d\n", count);
                 break;
