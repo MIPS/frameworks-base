@@ -19,7 +19,18 @@
 
 // ----------------------------------------------------------------------------
 
-#if !defined(__arm__) && (!defined (__mips__) || !defined(__MIPSEL__))
+#if defined(__AGL_SOFT_FLOAT__)  /*this macro is defined in Android.mk*/
+  /*Software fpu*/
+  #if (defined(__arm__) || (defined(__mips__) && defined(__MIPSEL__)))
+  /*we have the assembly verseion*/
+  #else
+  /*use the c version*/
+  GGLfixed gglFloatToFixed(float v) {   
+    return GGLfixed(floorf(v * 65536.0f + 0.5f));
+  }
+  #endif
+#else
+/*use the c version because we have hardware FPU*/
 GGLfixed gglFloatToFixed(float v) {   
     return GGLfixed(floorf(v * 65536.0f + 0.5f));
 }

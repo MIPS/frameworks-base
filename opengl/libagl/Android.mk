@@ -39,9 +39,15 @@ endif
 
 ifeq ($(TARGET_ARCH),mips)
 	ifeq ($(TARGET_CPU_ENDIAN),EL)
+	ifeq ($(TARGET_CPU_FLOAT),soft-float)
 		LOCAL_SRC_FILES += arch-$(TARGET_ARCH)/fixed_asm.S
 	endif
+	endif
 	LOCAL_CFLAGS += -fstrict-aliasing
+endif
+
+ifeq ($(TARGET_CPU_FLOAT),soft-float)
+	LOCAL_CFLAGS += -D__AGL_SOFT_FLOAT__
 endif
 
 ifneq ($(TARGET_SIMULATOR),true)
