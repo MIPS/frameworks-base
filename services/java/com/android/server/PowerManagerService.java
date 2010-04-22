@@ -51,7 +51,6 @@ import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Log;
 import android.view.WindowManagerPolicy;
-import android.os.SystemProperties;
 import static android.provider.Settings.System.DIM_SCREEN;
 import static android.provider.Settings.System.SCREEN_BRIGHTNESS;
 import static android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE;
@@ -229,8 +228,6 @@ class PowerManagerService extends IPowerManager.Stub
     private int[] mButtonBacklightValues;
     private int[] mKeyboardBacklightValues;
     private int mLightSensorWarmupTime;
-    // Used for reading the property value of "ro.ScreenOff"
-    private int	mScreenOff;
 
     // Used when logging number and duration of touch-down cycles
     private long mTotalTouchDownTime;
@@ -414,12 +411,7 @@ class PowerManagerService extends IPowerManager.Stub
         mActivityService = activity;
         mBatteryStats = BatteryStatsService.getService();
         mBatteryService = battery;
-        try {
-            mScreenOff = Integer.parseInt(SystemProperties.get("ro.ScreenOff"));
-	    Log.d(TAG,"Read property mScreenoff = " + mScreenOff);
-	} catch (NumberFormatException e) {
-            Log.e(TAG, "Default value for property mScreenOff has not been setup appropriately");
-        }
+
         mHandlerThread = new HandlerThread("PowerManagerService") {
             @Override
             protected void onLooperPrepared() {
@@ -1828,9 +1820,7 @@ class PowerManagerService extends IPowerManager.Stub
 
     public boolean isScreenOn() {
         synchronized (mLocks) {
-            if (mScreenOff == 0) {
-                mPowerState |= SCREEN_ON_BIT;
-            }
+	    mPowerState |= SCREEN_ON_BIT;
             return (mPowerState & SCREEN_ON_BIT) != 0;
         }
     }
