@@ -52,7 +52,17 @@
  * operation with a byte that only has the relevant bit set.
  * eg. to check for the 12th bit, we do (array[1] & 1<<4)
  */
+
+/*
+ * Despite the fact that this macro expects a byte array, it actually operates
+ * on 32 bit values, so the behaviour is endianess dependent
+ */
+#if defined(HAVE_LITTLE_ENDIAN)
 #define test_bit(bit, array)    (array[bit/8] & (1<<(bit%8)))
+#endif
+#if defined(HAVE_BIG_ENDIAN)
+#define test_bit(bit, array)    (array[3^(bit/8)] & (1<<(bit%8)))
+#endif
 
 #define ID_MASK  0x0000ffff
 #define SEQ_MASK 0x7fff0000
