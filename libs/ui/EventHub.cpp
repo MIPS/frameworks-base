@@ -47,22 +47,15 @@
 #include <sys/poll.h>
 #include <sys/ioctl.h>
 
-/* this macro is used to tell if "bit" is set in "array"
- * it selects a byte from the array, and does a boolean AND
- * operation with a byte that only has the relevant bit set.
- * eg. to check for the 12th bit, we do (array[1] & 1<<4)
- */
-
 /*
- * Despite the fact that this macro expects a byte array, it actually operates
- * on 32 bit values, so the behaviour is endianess dependent
+ * The kernel EVIOCG* ioctls return bitmaps defined in terms of longs
+ * This code assumes sizeof(long) == sizeof(int32_t)
  */
-#if defined(HAVE_LITTLE_ENDIAN)
-#define test_bit(bit, array)    (array[bit/8] & (1<<(bit%8)))
-#endif
-#if defined(HAVE_BIG_ENDIAN)
-#define test_bit(bit, array)    (array[3^(bit/8)] & (1<<(bit%8)))
-#endif
+#define BITS_PER_LONG		32
+#define BIT_MASK(nr)		(1UL << ((nr) % BITS_PER_LONG))
+#define BIT_WORD(nr)		((nr) / BITS_PER_LONG)
+#define BITS_TO_LONGS(nr)	(((nr)+(BITS_PER_LONG-1)) / BITS_PER_LONG)
+#define test_bit(bit, array)	(array[BIT_WORD(bit)] & BIT_MASK(bit))
 
 #define ID_MASK  0x0000ffff
 #define SEQ_MASK 0x7fff0000
@@ -186,7 +179,7 @@ int EventHub::getSwitchState(int32_t deviceId, int sw) const
     if (device == NULL) return -1;
     
     if (sw >= 0 && sw <= SW_MAX) {
-        uint8_t sw_bitmask[(SW_MAX+1)/8];
+        uint32_t sw_bitmask[BITS_TO_LONGS(SW_MAX+1)];
         memset(sw_bitmask, 0, sizeof(sw_bitmask));
         if (ioctl(mFDs[id_to_index(device->id)].fd,
                    EVIOCGSW(sizeof(sw_bitmask)), sw_bitmask) >= 0) {
@@ -210,7 +203,7 @@ int EventHub::getScancodeState(int32_t deviceId, int code) const
     if (device == NULL) return -1;
     
     if (code >= 0 && code <= KEY_MAX) {
-        uint8_t key_bitmask[(KEY_MAX+1)/8];
+        uint32_t key_bitmask[BITS_TO_LONGS(KEY_MAX+1)];
         memset(key_bitmask, 0, sizeof(key_bitmask));
         if (ioctl(mFDs[id_to_index(device->id)].fd,
                    EVIOCGKEY(sizeof(key_bitmask)), key_bitmask) >= 0) {
@@ -235,7 +228,7 @@ int EventHub::getKeycodeState(int32_t deviceId, int code) const
     Vector<int32_t> scanCodes;
     device->layoutMap->findScancodes(code, &scanCodes);
     
-    uint8_t key_bitmask[(KEY_MAX+1)/8];
+    uint32_t key_bitmask[BITS_TO_LONGS(KEY_MAX+1)];
     memset(key_bitmask, 0, sizeof(key_bitmask));
     if (ioctl(mFDs[id_to_index(device->id)].fd,
                EVIOCGKEY(sizeof(key_bitmask)), key_bitmask) >= 0) {
@@ -615,22 +608,22 @@ int EventHub::open_device(const char *deviceName)
     // figure out the kinds of events the device reports
     
     // See if this is a keyboard, and classify it.
-    uint8_t key_bitmask[(KEY_MAX+1)/8];
+    uint32_t key_bitmask[BITS_TO_LONGS(KEY_MAX+1)];
     memset(key_bitmask, 0, sizeof(key_bitmask));
     LOGV("Getting keys...");
     if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(key_bitmask)), key_bitmask) >= 0) {
         //LOGI("MAP\n");
-        //for (int i=0; i<((KEY_MAX+1)/8); i++) {
-        //    LOGI("%d: 0x%02x\n", i, key_bitmask[i]);
+        //for (int i=0; i<BITS_TO_LONGS(KEY_MAX+1); i++) {
+        //    LOGI("%d: 0x%08x\n", i*4, key_bitmask[i]);
         //}
-        for (int i=0; i<((BTN_MISC+7)/8); i++) {
+        for (int i=0; i<BITS_TO_LONGS(BTN_MISC+1); i++) {
             if (key_bitmask[i] != 0) {
                 device->classes |= CLASS_KEYBOARD;
                 break;
             }
         }
         if ((device->classes & CLASS_KEYBOARD) != 0) {
-            device->keyBitmask = new uint8_t[sizeof(key_bitmask)];
+	    device->keyBitmask = new uint32_t[sizeof(key_bitmask)/sizeof(key_bitmask[0])];
             if (device->keyBitmask != NULL) {
                 memcpy(device->keyBitmask, key_bitmask, sizeof(key_bitmask));
             } else {
@@ -643,7 +636,7 @@ int EventHub::open_device(const char *deviceName)
     
     // See if this is a trackball.
     if (test_bit(BTN_MOUSE, key_bitmask)) {
-        uint8_t rel_bitmask[(REL_MAX+1)/8];
+        uint32_t rel_bitmask[BITS_TO_LONGS(REL_MAX+1)];
         memset(rel_bitmask, 0, sizeof(rel_bitmask));
         LOGV("Getting relative controllers...");
         if (ioctl(fd, EVIOCGBIT(EV_REL, sizeof(rel_bitmask)), rel_bitmask) >= 0)
@@ -658,7 +651,7 @@ int EventHub::open_device(const char *deviceName)
         }
     }
     
-    uint8_t abs_bitmask[(ABS_MAX+1)/8];
+    uint32_t abs_bitmask[BITS_TO_LONGS(ABS_MAX+1)];
     memset(abs_bitmask, 0, sizeof(abs_bitmask));
     LOGV("Getting absolute controllers...");
     ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(abs_bitmask)), abs_bitmask);
@@ -677,7 +670,7 @@ int EventHub::open_device(const char *deviceName)
 
 #ifdef EV_SW
     // figure out the switches this device reports
-    uint8_t sw_bitmask[(SW_MAX+1)/8];
+    uint32_t sw_bitmask[BITS_TO_LONGS(SW_MAX+1)];
     memset(sw_bitmask, 0, sizeof(sw_bitmask));
     if (ioctl(fd, EVIOCGBIT(EV_SW, sizeof(sw_bitmask)), sw_bitmask) >= 0) {
         for (int i=0; i<EV_SW; i++) {

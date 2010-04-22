@@ -115,7 +115,7 @@ private:
         const String8   path;
         String8         name;
         uint32_t        classes;
-        uint8_t*        keyBitmask;
+        uint32_t*       keyBitmask;
         KeyLayoutMap*   layoutMap;
         String8         keylayoutFilename;
         device_t*       next;
