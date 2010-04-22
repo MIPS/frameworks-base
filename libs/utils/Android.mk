@@ -63,6 +63,13 @@ LOCAL_CFLAGS += -DMB_CUR_MAX=1
 endif
 endif
 
+ifeq ($(TARGET_ARCH),mips)
+LOCAL_CFLAGS += -DMIPS_SPECIFIC_HACKS
+ifeq ($(TARGET_CPU_ENDIAN),EB)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
+endif
+
 include $(BUILD_HOST_STATIC_LIBRARY)
 
 
@@ -105,6 +112,13 @@ LOCAL_SHARED_LIBRARIES += \
 	libdl
 endif # linux-mips
 endif # sim
+
+ifeq ($(TARGET_ARCH),mips)
+LOCAL_CFLAGS += -DMIPS_SPECIFIC_HACKS
+ifeq ($(TARGET_CPU_ENDIAN),EB)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
+endif
 
 LOCAL_MODULE:= libutils
 include $(BUILD_SHARED_LIBRARY)

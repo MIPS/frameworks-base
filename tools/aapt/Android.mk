@@ -24,6 +24,14 @@ LOCAL_SRC_FILES := \
 
 LOCAL_CFLAGS += -Wno-format-y2k
 
+ifeq ($(TARGET_ARCH),mips)
+LOCAL_CFLAGS += -DMIPS_SPECIFIC_HACKS
+ifeq ($(TARGET_CPU_ENDIAN),EB)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
+endif
+
+
 LOCAL_C_INCLUDES += external/expat/lib
 LOCAL_C_INCLUDES += external/libpng
 LOCAL_C_INCLUDES += external/zlib

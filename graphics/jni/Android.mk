@@ -33,6 +33,13 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_CFLAGS +=
 
+ifeq ($(TARGET_ARCH),mips)
+LOCAL_CFLAGS += -DMIPS_SPECIFIC_HACKS
+ifeq ($(TARGET_CPU_ENDIAN),EB)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
+endif
+
 LOCAL_LDLIBS := -lpthread
 LOCAL_ADDITIONAL_DEPENDENCIES := $(addprefix $(rs_generated_include_dir)/,rsgApiFuncDecl.h)
 LOCAL_MODULE:= librs_jni
