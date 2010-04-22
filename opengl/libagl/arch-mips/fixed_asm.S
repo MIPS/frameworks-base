@@ -40,10 +40,12 @@ gglFloatToFixedFast:
 		lui	    $t3,0x8000
         or	    $t2,$t2,$t3             /* add the missing 1 */
 		srl     $v0,$t2,$t1            /* scale to 16.16 */
+		sltiu   $t3,$t1,32            /* t3=1 if t1<32, else t3=0. t1>=32 means the float value is too small.*/
 		subu    $t2,$zero,$v0
 		movn    $v0,$t2,$t0            /*if negate?*/
 		or      $t1,$a0,$zero          /*a0=0?*/
 		movz    $v0,$zero,$t1
+		movz    $v0,$zero,$t3         /*t3=0 then res=0*/
 		jr      $ra
 
 /*
@@ -63,13 +65,15 @@ gglFloatToFixed:
         or	    $t2,$t2,$t3             /* add the missing 1 */
 		subu    $t1,$t1,1
         srl     $v0,$t2,$t1  
+        sltiu   $t3,$t1,32              /* t3=1 if t1<32, else t3=0. t1>=32 means the float value is too small.*/
         andi    $t4,$v0,0x1
         srl     $v0,$v0,1               /* scale to 16.16 */
         addu    $v0,$v0,$t4             /* round-to-nearest */
         subu    $t2,$zero,$v0
         movn    $v0,$t2,$t0             /*if negate?*/
-        or      $t1,$a0,$zero          /*a0=0?*/
-		movz    $v0,$zero,$t1
+        or      $t1,$a0,$zero           /*a0=0?*/
+        movz    $v0,$zero,$t1
+        movz    $v0,$zero,$t3         /*t3=0 then res=0*/
         jr      $ra
 0:      
 		lui	    $t1,0x8000
