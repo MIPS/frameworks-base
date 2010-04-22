@@ -48,11 +48,7 @@ static inline uint16_t android_swap_short(uint16_t v)
     return (v<<8) | (v>>8);
 }
 
-#ifdef BYTE_ORDER_BIG_ENDIAN
-#define DEVICE_BYTE_ORDER BIG_ENDIAN
-#else
 #define DEVICE_BYTE_ORDER LITTLE_ENDIAN
-#endif
 
 #if BYTE_ORDER == DEVICE_BYTE_ORDER
 
