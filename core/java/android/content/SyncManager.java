@@ -34,6 +34,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.pm.RegisteredServicesCache;
 import android.content.pm.ProviderInfo;
+import android.content.pm.RegisteredServicesCacheListener;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
@@ -344,6 +345,14 @@ class SyncManager implements OnAccountsUpdateListener {
         mPackageManager = null;
 
         mSyncAdapters = new SyncAdaptersCache(mContext);
+        mSyncAdapters.setListener(new RegisteredServicesCacheListener<SyncAdapterType>() {
+            public void onServiceChanged(SyncAdapterType type, boolean removed) {
+                if (!removed) {
+                    scheduleSync(null, type.authority, null, 0 /* no delay */,
+                            false /* onlyThoseWithUnkownSyncableState */);
+                }
+            }
+        }, mSyncHandler);
 
         mSyncAlarmIntent = PendingIntent.getBroadcast(
                 mContext, 0 /* ignored */, new Intent(ACTION_SYNC_ALARM), 0);
@@ -919,12 +928,16 @@ class SyncManager implements OnAccountsUpdateListener {
                     + previousSyncOperation);
         }
 
+        // If this sync aborted because the internal sync loop retried too many times then
+        //   don't reschedule. Otherwise we risk getting into a retry loop.
         // If the operation succeeded to some extent then retry immediately.
         // If this was a two-way sync then retry soft errors with an exponential backoff.
         // If this was an upward sync then schedule a two-way sync immediately.
         // Otherwise do not reschedule.
-
-        if (syncResult.madeSomeProgress()) {
+        if (syncResult.tooManyRetries) {
+            Log.d(TAG, "not retrying sync operation because it retried too many times: "
+                    + previousSyncOperation);
+        } else if (syncResult.madeSomeProgress()) {
             if (isLoggable) {
                 Log.d(TAG, "retrying sync operation immediately because "
                         + "even though it had an error it achieved some success");

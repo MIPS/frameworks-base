@@ -136,6 +136,7 @@ public class WindowManagerService extends IWindowManager.Stub
     static final boolean DEBUG = false;
     static final boolean DEBUG_FOCUS = false;
     static final boolean DEBUG_ANIM = false;
+    static final boolean DEBUG_LAYOUT = false;
     static final boolean DEBUG_LAYERS = false;
     static final boolean DEBUG_INPUT = false;
     static final boolean DEBUG_INPUT_METHOD = false;
@@ -227,20 +228,22 @@ public class WindowManagerService extends IWindowManager.Stub
     /**
      * Condition waited on by {@link #reenableKeyguard} to know the call to
      * the window policy has finished.
+     * This is set to true only if mKeyguardTokenWatcher.acquired() has
+     * actually disabled the keyguard.
      */
-    private boolean mWaitingUntilKeyguardReenabled = false;
+    private boolean mKeyguardDisabled = false;
 
-
-    final TokenWatcher mKeyguardDisabled = new TokenWatcher(
-            new Handler(), "WindowManagerService.mKeyguardDisabled") {
+    final TokenWatcher mKeyguardTokenWatcher = new TokenWatcher(
+            new Handler(), "WindowManagerService.mKeyguardTokenWatcher") {
         public void acquired() {
             mPolicy.enableKeyguard(false);
+            mKeyguardDisabled = true;
         }
         public void released() {
             mPolicy.enableKeyguard(true);
-            synchronized (mKeyguardDisabled) {
-                mWaitingUntilKeyguardReenabled = false;
-                mKeyguardDisabled.notifyAll();
+            synchronized (mKeyguardTokenWatcher) {
+                mKeyguardDisabled = false;
+                mKeyguardTokenWatcher.notifyAll();
             }
         }
     };
@@ -2295,10 +2298,7 @@ public class WindowManagerService extends IWindowManager.Stub
                 attrChanges = win.mAttrs.copyFrom(attrs);
             }
 
-            if (localLOGV) Log.v(
-                TAG, "Relayout given client " + client.asBinder()
-                + " (" + win.mAttrs.getTitle() + ")");
-
+            if (DEBUG_LAYOUT) Log.v(TAG, "Relayout " + win + ": " + win.mAttrs);
 
             if ((attrChanges & WindowManager.LayoutParams.ALPHA_CHANGED) != 0) {
                 win.mAlpha = attrs.alpha;
@@ -2314,6 +2314,8 @@ public class WindowManagerService extends IWindowManager.Stub
                         (attrs.width  / (float)requestedWidth) : 1.0f;
                 win.mVScale = (attrs.height != requestedHeight) ?
                         (attrs.height / (float)requestedHeight) : 1.0f;
+            } else {
+                win.mHScale = win.mVScale = 1;
             }
 
             boolean imMayMove = (flagChanges&(
@@ -2384,6 +2386,18 @@ public class WindowManagerService extends IWindowManager.Stub
                         && mInputMethodWindow == null) {
                     mInputMethodWindow = win;
                     imMayMove = true;
+                }
+                if (win.mAttrs.type == TYPE_BASE_APPLICATION
+                        && win.mAppToken != null
+                        && win.mAppToken.startingWindow != null) {
+                    // Special handling of starting window over the base
+                    // window of the app: propagate lock screen flags to it,
+                    // to provide the correct semantics while starting.
+                    final int mask =
+                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                        | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD;
+                    WindowManager.LayoutParams sa = win.mAppToken.startingWindow.mAttrs;
+                    sa.flags = (sa.flags&~mask) | (win.mAttrs.flags&mask);
                 }
             } else {
                 win.mEnterAnimationPending = false;
@@ -2456,7 +2470,12 @@ public class WindowManagerService extends IWindowManager.Stub
             boolean assignLayers = false;
 
             if (imMayMove) {
-                if (moveInputMethodWindowsIfNeededLocked(false)) {
+                if (moveInputMethodWindowsIfNeededLocked(false) || displayed) {
+                    // Little hack here -- we -should- be able to rely on the
+                    // function to return true if the IME has moved and needs
+                    // its layer recomputed.  However, if the IME was hidden
+                    // and isn't actually moved in the list, its layer may be
+                    // out of data so we make sure to recompute it.
                     assignLayers = true;
                 }
             }
@@ -3487,10 +3506,12 @@ public class WindowManagerService extends IWindowManager.Stub
                       + ": hidden=" + wtoken.hidden + " hiddenRequested="
                       + wtoken.hiddenRequested);
 
-            if (changed && performLayout) {
+            if (changed) {
                 mLayoutNeeded = true;
-                updateFocusedWindowLocked(UPDATE_FOCUS_WILL_PLACE_SURFACES);
-                performLayoutAndPlaceSurfacesLocked();
+                if (performLayout) {
+                    updateFocusedWindowLocked(UPDATE_FOCUS_WILL_PLACE_SURFACES);
+                    performLayoutAndPlaceSurfacesLocked();
+                }
             }
         }
 
@@ -3543,24 +3564,35 @@ public class WindowManagerService extends IWindowManager.Stub
                 wtoken.inPendingTransaction = true;
                 if (visible) {
                     mOpeningApps.add(wtoken);
-                    wtoken.allDrawn = false;
                     wtoken.startingDisplayed = false;
                     wtoken.startingMoved = false;
-                    wtoken.waitingToShow = true;
-
-                    if (wtoken.clientHidden) {
-                        // In the case where we are making an app visible
-                        // but holding off for a transition, we still need
-                        // to tell the client to make its windows visible so
-                        // they get drawn.  Otherwise, we will wait on
-                        // performing the transition until all windows have
-                        // been drawn, they never will be, and we are sad.
-                        wtoken.clientHidden = false;
-                        wtoken.sendAppVisibilityToClients();
+                    
+                    // If the token is currently hidden (should be the
+                    // common case), then we need to set up to wait for
+                    // its windows to be ready.
+                    if (wtoken.hidden) {
+                        wtoken.allDrawn = false;
+                        wtoken.waitingToShow = true;
+    
+                        if (wtoken.clientHidden) {
+                            // In the case where we are making an app visible
+                            // but holding off for a transition, we still need
+                            // to tell the client to make its windows visible so
+                            // they get drawn.  Otherwise, we will wait on
+                            // performing the transition until all windows have
+                            // been drawn, they never will be, and we are sad.
+                            wtoken.clientHidden = false;
+                            wtoken.sendAppVisibilityToClients();
+                        }
                     }
                 } else {
                     mClosingApps.add(wtoken);
-                    wtoken.waitingToHide = true;
+                    
+                    // If the token is currently visible (should be the
+                    // common case), then set up to wait for it to be hidden.
+                    if (!wtoken.hidden) {
+                        wtoken.waitingToHide = true;
+                    }
                 }
                 return;
             }
@@ -4049,8 +4081,8 @@ public class WindowManagerService extends IWindowManager.Stub
             != PackageManager.PERMISSION_GRANTED) {
             throw new SecurityException("Requires DISABLE_KEYGUARD permission");
         }
-        synchronized (mKeyguardDisabled) {
-            mKeyguardDisabled.acquire(token, tag);
+        synchronized (mKeyguardTokenWatcher) {
+            mKeyguardTokenWatcher.acquire(token, tag);
         }
     }
 
@@ -4059,16 +4091,20 @@ public class WindowManagerService extends IWindowManager.Stub
             != PackageManager.PERMISSION_GRANTED) {
             throw new SecurityException("Requires DISABLE_KEYGUARD permission");
         }
-        synchronized (mKeyguardDisabled) {
-            mKeyguardDisabled.release(token);
+        synchronized (mKeyguardTokenWatcher) {
+            mKeyguardTokenWatcher.release(token);
 
-            if (!mKeyguardDisabled.isAcquired()) {
-                // if we are the last one to reenable the keyguard wait until
-                // we have actaully finished reenabling until returning
-                mWaitingUntilKeyguardReenabled = true;
-                while (mWaitingUntilKeyguardReenabled) {
+            if (!mKeyguardTokenWatcher.isAcquired()) {
+                // If we are the last one to reenable the keyguard wait until
+                // we have actaully finished reenabling until returning.
+                // It is possible that reenableKeyguard() can be called before
+                // the previous disableKeyguard() is handled, in which case
+                // neither mKeyguardTokenWatcher.acquired() or released() would
+                // be called.  In that case mKeyguardDisabled will be false here
+                // and we have nothing to wait for.
+                while (mKeyguardDisabled) {
                     try {
-                        mKeyguardDisabled.wait();
+                        mKeyguardTokenWatcher.wait();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
@@ -4201,6 +4237,22 @@ public class WindowManagerService extends IWindowManager.Stub
         return mQueue.getScancodeState(devid, sw);
     }
 
+    public int getTrackballScancodeState(int sw) {
+        if (!checkCallingPermission(android.Manifest.permission.READ_INPUT_STATE,
+                "getTrackballScancodeState()")) {
+            throw new SecurityException("Requires READ_INPUT_STATE permission");
+        }
+        return mQueue.getTrackballScancodeState(sw);
+    }
+
+    public int getDPadScancodeState(int sw) {
+        if (!checkCallingPermission(android.Manifest.permission.READ_INPUT_STATE,
+                "getDPadScancodeState()")) {
+            throw new SecurityException("Requires READ_INPUT_STATE permission");
+        }
+        return mQueue.getDPadScancodeState(sw);
+    }
+
     public int getKeycodeState(int sw) {
         if (!checkCallingPermission(android.Manifest.permission.READ_INPUT_STATE,
                 "getKeycodeState()")) {
@@ -4215,6 +4267,22 @@ public class WindowManagerService extends IWindowManager.Stub
             throw new SecurityException("Requires READ_INPUT_STATE permission");
         }
         return mQueue.getKeycodeState(devid, sw);
+    }
+
+    public int getTrackballKeycodeState(int sw) {
+        if (!checkCallingPermission(android.Manifest.permission.READ_INPUT_STATE,
+                "getTrackballKeycodeState()")) {
+            throw new SecurityException("Requires READ_INPUT_STATE permission");
+        }
+        return mQueue.getTrackballKeycodeState(sw);
+    }
+
+    public int getDPadKeycodeState(int sw) {
+        if (!checkCallingPermission(android.Manifest.permission.READ_INPUT_STATE,
+                "getDPadKeycodeState()")) {
+            throw new SecurityException("Requires READ_INPUT_STATE permission");
+        }
+        return mQueue.getDPadKeycodeState(sw);
     }
 
     public boolean hasKeys(int[] keycodes, boolean[] keyExists) {
@@ -4256,7 +4324,7 @@ public class WindowManagerService extends IWindowManager.Stub
             final int N = mWindows.size();
             for (int i=0; i<N; i++) {
                 WindowState w = (WindowState)mWindows.get(i);
-                if (w.isVisibleLw() && !w.isDrawnLw()) {
+                if (w.isVisibleLw() && !w.mObscured && !w.isDrawnLw()) {
                     return;
                 }
             }
@@ -5037,7 +5105,9 @@ public class WindowManagerService extends IWindowManager.Stub
                 
                 // If we are on top of the wallpaper, then the wallpaper also
                 // gets to see this movement.
-                if (mWallpaperTarget == target || mSendingPointersToWallpaper) {
+                if ((mWallpaperTarget == target &&
+                        target.mAttrs.type != WindowManager.LayoutParams.TYPE_KEYGUARD)
+                        || mSendingPointersToWallpaper) {
                     sendPointerToWallpaperLocked(null, ev, eventTime);
                 }
                 
@@ -5968,16 +6038,18 @@ public class WindowManagerService extends IWindowManager.Stub
                         res.offsetLocation(-win.mFrame.left, -win.mFrame.top);
                     }
                 }
-                
-                if (res != null && returnWhat == RETURN_PENDING_POINTER) {
-                    synchronized (mWindowMap) {
-                        if (mWallpaperTarget == win || mSendingPointersToWallpaper) {
-                            sendPointerToWallpaperLocked(win, res, res.getEventTime());
-                        }
+            }
+
+            if (res != null && returnWhat == RETURN_PENDING_POINTER) {
+                synchronized (mWindowMap) {
+                    if ((mWallpaperTarget == win &&
+                            win.mAttrs.type != WindowManager.LayoutParams.TYPE_KEYGUARD)
+                            || mSendingPointersToWallpaper) {
+                        sendPointerToWallpaperLocked(win, res, res.getEventTime());
                     }
                 }
             }
-            
+
             return res;
         }
 
@@ -6355,7 +6427,9 @@ public class WindowManagerService extends IWindowManager.Stub
                             // Ignore
                         }
 
-                        if (eventType != TOUCH_EVENT
+                        if (ev.classType == RawInputEvent.CLASS_CONFIGURATION_CHANGED) {
+                            // do not wake screen in this case
+                        } else if (eventType != TOUCH_EVENT
                                 && eventType != LONG_TOUCH_EVENT
                                 && eventType != CHEEK_EVENT) {
                             mPowerManager.userActivity(curTime, false,
@@ -7439,6 +7513,12 @@ public class WindowManagerService extends IWindowManager.Stub
                     if (c.mSurface != null && c.mAttachedHidden) {
                         c.mAttachedHidden = false;
                         c.performShowLocked();
+                        // It hadn't been shown, which means layout not
+                        // performed on it, so now we want to make sure to
+                        // do a layout.  If called from within the transaction
+                        // loop, this will cause it to restart with a new
+                        // layout.
+                        mLayoutNeeded = true;
                     }
                 }
 
@@ -7555,6 +7635,12 @@ public class WindowManagerService extends IWindowManager.Stub
             mHasTransformation = false;
             mHasLocalTransformation = false;
             mPolicyVisibility = mPolicyVisibilityAfterAnim;
+            if (!mPolicyVisibility) {
+                // Window is no longer visible -- make sure if we were waiting
+                // for it to be displayed before enabling the display, that
+                // we allow the display to be enabled now.
+                enableScreenIfNeededLocked();
+            }
             mTransformation.clear();
             if (mHasDrawn
                     && mAttrs.type == WindowManager.LayoutParams.TYPE_APPLICATION_STARTING
@@ -8012,6 +8098,10 @@ public class WindowManagerService extends IWindowManager.Stub
             } else {
                 mPolicyVisibilityAfterAnim = false;
                 mPolicyVisibility = false;
+                // Window is no longer visible -- make sure if we were waiting
+                // for it to be displayed before enabling the display, that
+                // we allow the display to be enabled now.
+                enableScreenIfNeededLocked();
             }
             if (requestAnim) {
                 requestAnimationLocked(0);
@@ -8064,6 +8154,9 @@ public class WindowManagerService extends IWindowManager.Stub
                         pw.print(" mPolicyVisibilityAfterAnim=");
                         pw.print(mPolicyVisibilityAfterAnim);
                         pw.print(" mAttachedHidden="); pw.println(mAttachedHidden);
+            }
+            if (!mRelayoutCalled) {
+                pw.print(prefix); pw.print("mRelayoutCalled="); pw.println(mRelayoutCalled);
             }
             pw.print(prefix); pw.print("Requested w="); pw.print(mRequestedWidth);
                     pw.print(" h="); pw.println(mRequestedHeight);
@@ -9201,6 +9294,9 @@ public class WindowManagerService extends IWindowManager.Stub
         int repeats = 0;
         int i;
 
+        if (DEBUG_LAYOUT) Log.v(TAG, "performLayout: needed="
+                + mLayoutNeeded + " dw=" + dw + " dh=" + dh);
+        
         // FIRST LOOP: Perform a layout, if needed.
 
         while (mLayoutNeeded) {
@@ -9223,6 +9319,18 @@ public class WindowManagerService extends IWindowManager.Stub
                         || win.mAttachedHidden
                         || win.mExiting || win.mDestroying;
 
+                if (win.mLayoutAttached) {
+                    if (DEBUG_LAYOUT) Log.v(TAG, "First pass " + win
+                            + ": gone=" + gone + " mHaveFrame=" + win.mHaveFrame
+                            + " mLayoutAttached=" + win.mLayoutAttached);
+                    if (DEBUG_LAYOUT && gone) Log.v(TAG, "  (mViewVisibility="
+                            + win.mViewVisibility + " mRelayoutCalled="
+                            + win.mRelayoutCalled + " hidden="
+                            + win.mRootToken.hidden + " hiddenRequested="
+                            + (atoken != null && atoken.hiddenRequested)
+                            + " mAttachedHidden=" + win.mAttachedHidden);
+                }
+                
                 // If this view is GONE, then skip it -- keep the current
                 // frame, and let the caller know so they can ignore it
                 // if they want.  (We do the normal layout for INVISIBLE
@@ -9231,6 +9339,10 @@ public class WindowManagerService extends IWindowManager.Stub
                 if (!gone || !win.mHaveFrame) {
                     if (!win.mLayoutAttached) {
                         mPolicy.layoutWindowLw(win, win.mAttrs, null);
+                        if (DEBUG_LAYOUT) Log.v(TAG, "-> mFrame="
+                                + win.mFrame + " mContainingFrame="
+                                + win.mContainingFrame + " mDisplayFrame="
+                                + win.mDisplayFrame);
                     } else {
                         if (topAttached < 0) topAttached = i;
                     }
@@ -9250,9 +9362,17 @@ public class WindowManagerService extends IWindowManager.Stub
                 // windows, since that means "perform layout as normal,
                 // just don't display").
                 if (win.mLayoutAttached) {
+                    if (DEBUG_LAYOUT) Log.v(TAG, "Second pass " + win
+                            + " mHaveFrame=" + win.mHaveFrame
+                            + " mViewVisibility=" + win.mViewVisibility
+                            + " mRelayoutCalled=" + win.mRelayoutCalled);
                     if ((win.mViewVisibility != View.GONE && win.mRelayoutCalled)
                             || !win.mHaveFrame) {
                         mPolicy.layoutWindowLw(win, win.mAttrs, win.mAttachedWindow);
+                        if (DEBUG_LAYOUT) Log.v(TAG, "-> mFrame="
+                                + win.mFrame + " mContainingFrame="
+                                + win.mContainingFrame + " mDisplayFrame="
+                                + win.mDisplayFrame);
                     }
                 }
             }
@@ -9277,8 +9397,11 @@ public class WindowManagerService extends IWindowManager.Stub
                     }
                 }
             } else {
+                if (DEBUG_LAYOUT) Log.v(TAG, "Repeating layout because changes=0x"
+                        + Integer.toHexString(changes));
                 repeats++;
                 if ((changes&WindowManagerPolicy.FINISH_LAYOUT_REDO_CONFIG) != 0) {
+                    if (DEBUG_LAYOUT) Log.v(TAG, "Computing new config from layout");
                     Configuration newConfig = updateOrientationFromAppTokensLocked(
                             null, null);
                     if (newConfig != null) {
@@ -10393,6 +10516,10 @@ public class WindowManagerService extends IWindowManager.Stub
                     LocalPowerManager.BUTTON_EVENT, true);
             mTurnOnScreen = false;
         }
+        
+        // Check to see if we are now in a state where the screen should
+        // be enabled, because the window obscured flags have changed.
+        enableScreenIfNeededLocked();
     }
 
     void requestAnimationLocked(long delay) {
@@ -10929,7 +11056,7 @@ public class WindowManagerService extends IWindowManager.Stub
 
     public void monitor() {
         synchronized (mWindowMap) { }
-        synchronized (mKeyguardDisabled) { }
+        synchronized (mKeyguardTokenWatcher) { }
         synchronized (mKeyWaiter) { }
     }
 

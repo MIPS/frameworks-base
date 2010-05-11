@@ -338,6 +338,7 @@ framework_docs_LOCAL_INTERMEDIATE_SOURCES := \
 framework_docs_LOCAL_JAVA_LIBRARIES := \
 			core \
 			ext \
+			framework \
 
 framework_docs_LOCAL_MODULE_CLASS := JAVA_LIBRARIES
 framework_docs_LOCAL_DROIDDOC_HTML_DIR := docs/html
@@ -349,6 +350,8 @@ framework_docs_LOCAL_DROIDDOC_OPTIONS := \
     -since ./frameworks/base/api/3.xml 3 \
     -since ./frameworks/base/api/4.xml 4 \
     -since ./frameworks/base/api/5.xml 5 \
+    -since ./frameworks/base/api/6.xml 6 \
+    -since ./frameworks/base/api/7.xml 7 \
 		-error 1 -error 2 -warning 3 -error 4 -error 6 -error 8 \
 		-overview $(LOCAL_PATH)/core/java/overview.html
 
@@ -356,28 +359,46 @@ framework_docs_LOCAL_ADDITIONAL_JAVA_DIR:=$(call intermediates-dir-for,JAVA_LIBR
 
 sample_dir := development/samples
 
+# the list here should match the list of samples included in the sdk samples package
+# (see development/build/sdk.atree)
 web_docs_sample_code_flags := \
 		-hdf android.hasSamples 1 \
 		-samplecode $(sample_dir)/ApiDemos \
-		            guide/samples/ApiDemos "API Demos" \
+		            resources/samples/ApiDemos "API Demos" \
+		-samplecode $(sample_dir)/BluetoothChat \
+		            resources/samples/BluetoothChat "Bluetooth Chat" \
+		-samplecode $(sample_dir)/BusinessCard \
+		            resources/samples/BusinessCard "Business Card" \
+		-samplecode $(sample_dir)/ContactManager \
+		            resources/samples/ContactManager "Contact Manager" \
+                -samplecode $(sample_dir)/CubeLiveWallpaper \
+                            resources/samples/CubeLiveWallpaper "Live Wallpaper" \
 		-samplecode $(sample_dir)/Home \
-		            guide/samples/Home "Home" \
+		            resources/samples/Home "Home" \
 		-samplecode $(sample_dir)/JetBoy \
-		            guide/samples/JetBoy "JetBoy" \
+		            resources/samples/JetBoy "JetBoy" \
 		-samplecode $(sample_dir)/LunarLander \
-		            guide/samples/LunarLander "Lunar Lander" \
+		            resources/samples/LunarLander "Lunar Lander" \
+		-samplecode $(sample_dir)/MultiResolution \
+		            resources/samples/MultiResolution "Multiple Resolutions" \
 		-samplecode $(sample_dir)/NotePad \
-		            guide/samples/NotePad "Note Pad" \
+		            resources/samples/NotePad "Note Pad" \
+                -samplecode $(sample_dir)/SampleSyncAdapter \
+                            resources/samples/SampleSyncAdapter "Sample Sync Adapter" \
 		-samplecode $(sample_dir)/SearchableDictionary \
-		            guide/samples/SearchableDictionary "Searchable Dictionary" \
+		            resources/samples/SearchableDictionary "Searchable Dictionary" \
 		-samplecode $(sample_dir)/Snake \
-		            guide/samples/Snake "Snake" \
+		            resources/samples/Snake "Snake" \
 		-samplecode $(sample_dir)/SoftKeyboard \
-		            guide/samples/SoftKeyboard "Soft Keyboard"
+		            resources/samples/SoftKeyboard "Soft Keyboard" \
+		-samplecode $(sample_dir)/Wiktionary \
+		            resources/samples/Wiktionary "Wiktionary" \
+		-samplecode $(sample_dir)/WiktionarySimple \
+		            resources/samples/WiktionarySimple "Wiktionary (Simplified)"
 
 ## SDK version identifiers used in the published docs
   # major[.minor] version for current SDK. (full releases only)
-framework_docs_SDK_VERSION:=2.0
+framework_docs_SDK_VERSION:=2.1
   # release version (ie "Release x")  (full releases only)
 framework_docs_SDK_REL_ID:=1
   # name of current SDK directory (full releases only)
@@ -386,10 +407,10 @@ framework_docs_SDK_CURRENT_DIR:=$(framework_docs_SDK_VERSION)_r$(framework_docs_
 framework_docs_SDK_PREVIEW:=0
 
 ## Latest ADT version identifiers, for reference from published docs
-framework_docs_ADT_VERSION:=0.9.4
-framework_docs_ADT_DOWNLOAD:=ADT-0.9.4.zip
-framework_docs_ADT_BYTES:=3367536
-framework_docs_ADT_CHECKSUM:=4cdecd72b3e28022d8a55891f13e7d43
+framework_docs_ADT_VERSION:=0.9.6
+framework_docs_ADT_DOWNLOAD:=ADT-0.9.6.zip
+framework_docs_ADT_BYTES:=7456339
+framework_docs_ADT_CHECKSUM:=ea45d271be52b87b5dd1c9fb17536223
 
 framework_docs_LOCAL_DROIDDOC_OPTIONS += \
 		-hdf sdk.version $(framework_docs_SDK_VERSION) \
@@ -443,6 +464,8 @@ LOCAL_MODULE := offline-sdk
 
 LOCAL_DROIDDOC_OPTIONS:=\
 		$(framework_docs_LOCAL_DROIDDOC_OPTIONS) \
+                $(web_docs_sample_code_flags) \
+                -offlinemode \
 		-title "Android SDK" \
 		-proofread $(OUT_DOCS)/$(LOCAL_MODULE)-proofread.txt \
 		-todo $(OUT_DOCS)/$(LOCAL_MODULE)-docs-todo.html \

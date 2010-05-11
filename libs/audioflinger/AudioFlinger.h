@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <limits.h>
 
 #include <media/IAudioFlinger.h>
 #include <media/IAudioFlingerClient.h>
@@ -208,12 +209,13 @@ private:
     class PlaybackThread;
     class MixerThread;
     class DirectOutputThread;
+    class DuplicatingThread;
     class Track;
     class RecordTrack;
 
     class ThreadBase : public Thread {
     public:
-        ThreadBase (const sp<AudioFlinger>& audioFlinger);
+        ThreadBase (const sp<AudioFlinger>& audioFlinger, int id);
         virtual             ~ThreadBase();
 
         status_t dumpBase(int fd, const Vector<String16>& args);
@@ -323,6 +325,8 @@ private:
                     void        sendConfigEvent(int event, int param = 0);
                     void        sendConfigEvent_l(int event, int param = 0);
                     void        processConfigEvents();
+                    int         id() const { return mId;}
+                    bool        standby() { return mStandby; }
 
         mutable     Mutex                   mLock;
 
@@ -349,6 +353,8 @@ private:
                     status_t                mParamStatus;
                     Vector<ConfigEvent *>   mConfigEvents;
                     bool                    mStandby;
+                    int                     mId;
+                    bool                    mExiting;
     };
 
     // --- PlaybackThread ---
@@ -359,6 +365,12 @@ private:
             MIXER,
             DIRECT,
             DUPLICATING
+        };
+
+        enum mixer_state {
+            MIXER_IDLE,
+            MIXER_TRACKS_ENABLED,
+            MIXER_TRACKS_READY
         };
 
         // playback track
@@ -415,6 +427,10 @@ private:
             void setPaused() { mState = PAUSED; }
             void reset();
 
+            bool isOutputTrack() const {
+                return (mStreamType == AudioSystem::NUM_STREAM_TYPES);
+            }
+
             // we don't really need a lock for these
             float               mVolume[2];
             volatile bool       mMute;
@@ -439,6 +455,7 @@ private:
             };
 
                                 OutputTrack(  const wp<ThreadBase>& thread,
+                                        DuplicatingThread *sourceThread,
                                         uint32_t sampleRate,
                                         int format,
                                         int channelCount,
@@ -458,16 +475,15 @@ private:
             void                clearBufferQueue();
 
             // Maximum number of pending buffers allocated by OutputTrack::write()
-            static const uint8_t kMaxOverFlowBuffers = 3;
+            static const uint8_t kMaxOverFlowBuffers = 10;
 
             Vector < Buffer* >          mBufferQueue;
             AudioBufferProvider::Buffer mOutBuffer;
-            uint32_t                    mWaitTimeMs;
             bool                        mActive;
-
+            DuplicatingThread*          mSourceThread;
         };  // end of OutputTrack
 
-        PlaybackThread (const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output);
+        PlaybackThread (const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output, int id);
         virtual             ~PlaybackThread();
 
         virtual     status_t    dump(int fd, const Vector<String16>& args);
@@ -507,6 +523,7 @@ private:
         virtual     int         type() const { return mType; }
                     void        suspend() { mSuspended++; }
                     void        restore() { if (mSuspended) mSuspended--; }
+                    bool        isSuspended() { return (mSuspended != 0); }
         virtual     String8     getParameters(const String8& keys);
         virtual     void        audioConfigChanged(int event, int param = 0);
 
@@ -530,7 +547,8 @@ private:
 
         virtual int             getTrackName_l() = 0;
         virtual void            deleteTrackName_l(int name) = 0;
-        virtual uint32_t        getMaxBufferRecoveryInUsecs() = 0;
+        virtual uint32_t        activeSleepTimeUs() = 0;
+        virtual uint32_t        idleSleepTimeUs() = 0;
 
     private:
 
@@ -562,12 +580,11 @@ private:
         int                             mNumWrites;
         int                             mNumDelayedWrites;
         bool                            mInWrite;
-        int                             mMinBytesToWrite;
     };
 
     class MixerThread : public PlaybackThread {
     public:
-        MixerThread (const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output);
+        MixerThread (const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output, int id);
         virtual             ~MixerThread();
 
         // Thread virtuals
@@ -582,10 +599,11 @@ private:
         virtual     status_t    dumpInternals(int fd, const Vector<String16>& args);
 
     protected:
-        size_t prepareTracks_l(const SortedVector< wp<Track> >& activeTracks, Vector< sp<Track> > *tracksToRemove);
+                    uint32_t    prepareTracks_l(const SortedVector< wp<Track> >& activeTracks, Vector< sp<Track> > *tracksToRemove);
         virtual     int         getTrackName_l();
         virtual     void        deleteTrackName_l(int name);
-        virtual     uint32_t    getMaxBufferRecoveryInUsecs();
+        virtual     uint32_t    activeSleepTimeUs();
+        virtual     uint32_t    idleSleepTimeUs();
 
         AudioMixer*                     mAudioMixer;
     };
@@ -593,7 +611,7 @@ private:
     class DirectOutputThread : public PlaybackThread {
     public:
 
-        DirectOutputThread (const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output);
+        DirectOutputThread (const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output, int id);
         ~DirectOutputThread();
 
         // Thread virtuals
@@ -604,7 +622,8 @@ private:
     protected:
         virtual     int         getTrackName_l();
         virtual     void        deleteTrackName_l(int name);
-        virtual     uint32_t    getMaxBufferRecoveryInUsecs();
+        virtual     uint32_t    activeSleepTimeUs();
+        virtual     uint32_t    idleSleepTimeUs();
 
     private:
         float mLeftVolume;
@@ -613,23 +632,30 @@ private:
 
     class DuplicatingThread : public MixerThread {
     public:
-        DuplicatingThread (const sp<AudioFlinger>& audioFlinger, MixerThread* mainThread);
+        DuplicatingThread (const sp<AudioFlinger>& audioFlinger, MixerThread* mainThread, int id);
         ~DuplicatingThread();
 
         // Thread virtuals
         virtual     bool        threadLoop();
                     void        addOutputTrack(MixerThread* thread);
                     void        removeOutputTrack(MixerThread* thread);
+                    uint32_t    waitTimeMs() { return mWaitTimeMs; }
+    protected:
+        virtual     uint32_t    activeSleepTimeUs();
 
     private:
+                    bool        outputsReady(SortedVector< sp<OutputTrack> > &outputTracks);
+                    void        updateWaitTime();
+
         SortedVector < sp<OutputTrack> >  mOutputTracks;
+                    uint32_t    mWaitTimeMs;
     };
 
               PlaybackThread *checkPlaybackThread_l(int output) const;
               MixerThread *checkMixerThread_l(int output) const;
               RecordThread *checkRecordThread_l(int input) const;
               float streamVolumeInternal(int stream) const { return mStreamTypes[stream].volume; }
-              void audioConfigChanged_l(int event, const sp<ThreadBase>& thread, void *param2);
+              void audioConfigChanged_l(int event, int ioHandle, void *param2);
 
     friend class AudioBuffer;
 
@@ -697,7 +723,8 @@ private:
                 RecordThread(const sp<AudioFlinger>& audioFlinger,
                         AudioStreamIn *input,
                         uint32_t sampleRate,
-                        uint32_t channels);
+                        uint32_t channels,
+                        int id);
                 ~RecordThread();
 
         virtual bool        threadLoop();
@@ -728,6 +755,7 @@ private:
                 size_t                              mInputBytes;
                 int                                 mReqChannelCount;
                 uint32_t                            mReqSampleRate;
+                ssize_t                             mBytesRead;
     };
 
     class RecordHandle : public android::BnAudioRecord {

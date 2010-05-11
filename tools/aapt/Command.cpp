@@ -678,7 +678,7 @@ int doDump(Bundle* bundle)
                                 REQ_NAVIGATION_ATTR, NULL, 0);
                         int32_t reqFiveWayNav = getIntegerAttribute(tree,
                                 REQ_FIVE_WAY_NAV_ATTR, NULL, 0);
-                        printf("uses-configuation:");
+                        printf("uses-configuration:");
                         if (reqTouchScreen != 0) {
                             printf(" reqTouchScreen='%d'", reqTouchScreen);
                         }
@@ -1151,7 +1151,12 @@ int doPackage(Bundle* bundle)
 
     // Write out R.java constants
     if (assets->getPackage() == assets->getSymbolsPrivatePackage()) {
-        err = writeResourceSymbols(bundle, assets, assets->getPackage(), true);
+        if (bundle->getCustomPackage() == NULL) {
+            err = writeResourceSymbols(bundle, assets, assets->getPackage(), true);
+        } else {
+            const String8 customPkg(bundle->getCustomPackage());
+            err = writeResourceSymbols(bundle, assets, customPkg, true);
+        }
         if (err < 0) {
             goto bail;
         }

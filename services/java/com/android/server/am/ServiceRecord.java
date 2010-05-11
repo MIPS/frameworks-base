@@ -29,6 +29,7 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.util.Log;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ import java.util.List;
  * A running application service.
  */
 class ServiceRecord extends Binder {
+    final ActivityManagerService ams;
     final BatteryStatsImpl.Uid.Pkg.Serv stats;
     final ComponentName name; // service component.
     final String shortName; // name.flattenToShortString().
@@ -192,8 +194,10 @@ class ServiceRecord extends Binder {
         }
     }
 
-    ServiceRecord(BatteryStatsImpl.Uid.Pkg.Serv servStats, ComponentName name,
+    ServiceRecord(ActivityManagerService ams,
+            BatteryStatsImpl.Uid.Pkg.Serv servStats, ComponentName name,
             Intent.FilterComparison intent, ServiceInfo sInfo, Runnable restarter) {
+        this.ams = ams;
         this.stats = servStats;
         this.name = name;
         shortName = name.flattenToShortString();
@@ -249,27 +253,52 @@ class ServiceRecord extends Binder {
     
     public void postNotification() {
         if (foregroundId != 0 && foregroundNoti != null) {
-            INotificationManager inm = NotificationManager.getService();
-            if (inm != null) {
-                try {
-                    int[] outId = new int[1];
-                    inm.enqueueNotification(packageName, foregroundId,
-                            foregroundNoti, outId);
-                } catch (RemoteException e) {
+            // Do asynchronous communication with notification manager to
+            // avoid deadlocks.
+            final String localPackageName = packageName;
+            final int localForegroundId = foregroundId;
+            final Notification localForegroundNoti = foregroundNoti;
+            ams.mHandler.post(new Runnable() {
+                public void run() {
+                    INotificationManager inm = NotificationManager.getService();
+                    if (inm == null) {
+                        return;
+                    }
+                    try {
+                        int[] outId = new int[1];
+                        inm.enqueueNotification(localPackageName, localForegroundId,
+                                localForegroundNoti, outId);
+                    } catch (RuntimeException e) {
+                        Log.w(ActivityManagerService.TAG, "Error showing notification for service",
+                            e);
+                    } catch (RemoteException e) {
+                    }
                 }
-            }
+            });
         }
     }
     
     public void cancelNotification() {
         if (foregroundId != 0) {
-            INotificationManager inm = NotificationManager.getService();
-            if (inm != null) {
-                try {
-                    inm.cancelNotification(packageName, foregroundId);
-                } catch (RemoteException e) {
+            // Do asynchronous communication with notification manager to
+            // avoid deadlocks.
+            final String localPackageName = packageName;
+            final int localForegroundId = foregroundId;
+            ams.mHandler.post(new Runnable() {
+                public void run() {
+                    INotificationManager inm = NotificationManager.getService();
+                    if (inm == null) {
+                        return;
+                    }
+                    try {
+                        inm.cancelNotification(localPackageName, localForegroundId);
+                    } catch (RuntimeException e) {
+                        Log.w(ActivityManagerService.TAG, "Error canceling notification for"
+                            + " service", e);
+                    } catch (RemoteException e) {
+                    }
                 }
-            }
+            });
         }
     }
     

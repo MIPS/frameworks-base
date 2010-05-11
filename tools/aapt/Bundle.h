@@ -39,11 +39,11 @@ public:
           mRequireLocalization(false), mPseudolocalize(false),
           mValues(false),
           mCompressionMethod(0), mOutputAPKFile(NULL),
-          mAssetSourceDir(NULL), mProguardFile(NULL),
+          mAutoAddOverlay(false), mAssetSourceDir(NULL), mProguardFile(NULL),
           mAndroidManifestFile(NULL), mPublicOutputFile(NULL),
           mRClassDir(NULL), mResourceIntermediatesDir(NULL),
           mMinSdkVersion(NULL), mTargetSdkVersion(NULL), mMaxSdkVersion(NULL),
-          mVersionCode(NULL), mVersionName(NULL),
+          mVersionCode(NULL), mVersionName(NULL), mCustomPackage(NULL),
           mArgc(0), mArgv(NULL)
         {}
     ~Bundle(void) {}
@@ -84,6 +84,8 @@ public:
     void setJunkPath(bool val) { mJunkPath = val; }
     const char* getOutputAPKFile() const { return mOutputAPKFile; }
     void setOutputAPKFile(const char* val) { mOutputAPKFile = val; }
+    bool getAutoAddOverlay() { return mAutoAddOverlay; }
+    void setAutoAddOverlay(bool val) { mAutoAddOverlay = val; }
 
     /*
      * Input options.
@@ -121,6 +123,8 @@ public:
     void setVersionCode(const char*  val) { mVersionCode = val; }
     const char* getVersionName() const { return mVersionName; }
     void setVersionName(const char* val) { mVersionName = val; }
+    const char* getCustomPackage() const { return mCustomPackage; }
+    void setCustomPackage(const char* val) { mCustomPackage = val; }
 
     /*
      * Set and get the file specification.
@@ -165,6 +169,7 @@ private:
     int         mCompressionMethod;
     bool        mJunkPath;
     const char* mOutputAPKFile;
+    bool        mAutoAddOverlay;
     const char* mAssetSourceDir;
     const char* mProguardFile;
     const char* mAndroidManifestFile;
@@ -182,6 +187,7 @@ private:
     const char* mMaxSdkVersion;
     const char* mVersionCode;
     const char* mVersionName;
+    const char* mCustomPackage;
 
     /* file specification */
     int         mArgc;

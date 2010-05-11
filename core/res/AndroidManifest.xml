@@ -41,6 +41,7 @@
     <protected-broadcast android:name="android.intent.action.PACKAGE_DATA_CLEARED" />
     <protected-broadcast android:name="android.intent.action.UID_REMOVED" />
     <protected-broadcast android:name="android.intent.action.CONFIGURATION_CHANGED" />
+    <protected-broadcast android:name="android.intent.action.LOCALE_CHANGED" />
     <protected-broadcast android:name="android.intent.action.BATTERY_CHANGED" />
     <protected-broadcast android:name="android.intent.action.BATTERY_LOW" />
     <protected-broadcast android:name="android.intent.action.BATTERY_OKAY" />
@@ -402,7 +403,13 @@
         android:label="@string/permlab_recordAudio"
         android:description="@string/permdesc_recordAudio" />
 
-    <!-- Required to be able to access the camera device. -->
+    <!-- Required to be able to access the camera device.
+         <p>This will automatically enforce the <a
+         href="{@docRoot}guide/topics/manifest/uses-feature-element.html">{@code
+         &lt;uses-feature&gt;}</a> manifest element for <em>all</em> camera features.
+         If you do not require all camera features or can properly operate if a camera
+         is not available, then you must modify your manifest as appropriate in order to
+         install on devices that don't support all camera features.</p> -->
     <permission android:name="android.permission.CAMERA"
         android:permissionGroup="android.permission-group.HARDWARE_CONTROLS"
         android:protectionLevel="dangerous"
@@ -596,11 +603,9 @@
         android:label="@string/permlab_getPackageSize"
         android:description="@string/permdesc_getPackageSize" />
 
-    <!-- Allows an application to modify the list of preferred applications
-         with the {@link android.content.pm.PackageManager#addPackageToPreferred
-         PackageManager.addPackageToPreferred()} and
-         {@link android.content.pm.PackageManager#removePackageFromPreferred
-         PackageManager.removePackageFromPreferred()} methods. -->
+    <!-- @deprecated No longer useful, see
+         {@link android.content.pm.PackageManager#addPackageToPreferred}
+         for details. -->
     <permission android:name="android.permission.SET_PREFERRED_APPLICATIONS"
         android:permissionGroup="android.permission-group.SYSTEM_TOOLS"
         android:protectionLevel="dangerous"

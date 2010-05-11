@@ -430,7 +430,7 @@ static void checkForIds(const String8& path, ResXMLParser& parser)
 
 static bool applyFileOverlay(Bundle *bundle,
                              const sp<AaptAssets>& assets,
-                             const sp<ResourceTypeSet>& baseSet,
+                             sp<ResourceTypeSet> *baseSet,
                              const char *resType)
 {
     if (bundle->getVerbose()) {
@@ -458,13 +458,16 @@ static bool applyFileOverlay(Bundle *bundle,
                 if (bundle->getVerbose()) {
                     printf("trying overlaySet Key=%s\n",overlaySet->keyAt(overlayIndex).string());
                 }
-                size_t baseIndex = baseSet->indexOfKey(overlaySet->keyAt(overlayIndex));
+                size_t baseIndex = UNKNOWN_ERROR;
+                if (baseSet->get() != NULL) {
+                    baseIndex = (*baseSet)->indexOfKey(overlaySet->keyAt(overlayIndex));
+                }
                 if (baseIndex < UNKNOWN_ERROR) {
                     // look for same flavor.  For a given file (strings.xml, for example)
                     // there may be a locale specific or other flavors - we want to match
                     // the same flavor.
                     sp<AaptGroup> overlayGroup = overlaySet->valueAt(overlayIndex);
-                    sp<AaptGroup> baseGroup = baseSet->valueAt(baseIndex);
+                    sp<AaptGroup> baseGroup = (*baseSet)->valueAt(baseIndex);
 
                     DefaultKeyedVector<AaptGroupEntry, sp<AaptFile> > overlayFiles =
                             overlayGroup->getFiles();
@@ -503,8 +506,12 @@ static bool applyFileOverlay(Bundle *bundle,
                         assets->addGroupEntry(overlayFiles.keyAt(overlayGroupIndex));
                     }
                 } else {
+                    if (baseSet->get() == NULL) {
+                        *baseSet = new ResourceTypeSet();
+                        assets->getResources()->add(String8(resType), *baseSet);
+                    }
                     // this group doesn't exist (a file that's only in the overlay)
-                    baseSet->add(overlaySet->keyAt(overlayIndex),
+                    (*baseSet)->add(overlaySet->keyAt(overlayIndex),
                             overlaySet->valueAt(overlayIndex));
                     // make sure all flavors are defined in the resources.
                     sp<AaptGroup> overlayGroup = overlaySet->valueAt(overlayIndex);
@@ -649,13 +656,13 @@ status_t buildResources(Bundle* bundle, const sp<AaptAssets>& assets)
         current = current->getOverlay();
     }
     // apply the overlay files to the base set
-    if (!applyFileOverlay(bundle, assets, drawables, "drawable") ||
-            !applyFileOverlay(bundle, assets, layouts, "layout") ||
-            !applyFileOverlay(bundle, assets, anims, "anim") ||
-            !applyFileOverlay(bundle, assets, xmls, "xml") ||
-            !applyFileOverlay(bundle, assets, raws, "raw") ||
-            !applyFileOverlay(bundle, assets, colors, "color") ||
-            !applyFileOverlay(bundle, assets, menus, "menu")) {
+    if (!applyFileOverlay(bundle, assets, &drawables, "drawable") ||
+            !applyFileOverlay(bundle, assets, &layouts, "layout") ||
+            !applyFileOverlay(bundle, assets, &anims, "anim") ||
+            !applyFileOverlay(bundle, assets, &xmls, "xml") ||
+            !applyFileOverlay(bundle, assets, &raws, "raw") ||
+            !applyFileOverlay(bundle, assets, &colors, "color") ||
+            !applyFileOverlay(bundle, assets, &menus, "menu")) {
         return UNKNOWN_ERROR;
     }
 
@@ -1727,24 +1734,34 @@ writeProguardForAndroidManifest(ProguardKeepSet* keep, const sp<AaptAssets>& ass
         depth++;
         String8 tag(tree.getElementName(&len));
         // printf("Depth %d tag %s\n", depth, tag.string());
+        bool keepTag = false;
         if (depth == 1) {
             if (tag != "manifest") {
                 fprintf(stderr, "ERROR: manifest does not start with <manifest> tag\n");
                 return -1;
             }
             pkg = getAttribute(tree, NULL, "package", NULL);
-        } else if (depth == 2 && tag == "application") {
-            inApplication = true;
+        } else if (depth == 2) {
+            if (tag == "application") {
+                inApplication = true;
+                keepTag = true;
+            } else if (tag == "instrumentation") {
+                keepTag = true;
+            }
         }
-        if (inApplication) {
-            if (tag == "application" || tag == "activity" || tag == "service" || tag == "receiver"
-                    || tag == "provider") {
-                String8 name = getAttribute(tree, "http://schemas.android.com/apk/res/android",
-                        "name", &error);
-                if (error != "") {
-                    fprintf(stderr, "ERROR: %s\n", error.string());
-                    return -1;
-                }
+        if (!keepTag && inApplication && depth == 3) {
+            if (tag == "activity" || tag == "service" || tag == "receiver" || tag == "provider") {
+                keepTag = true;
+            }
+        }
+        if (keepTag) {
+            String8 name = getAttribute(tree, "http://schemas.android.com/apk/res/android",
+                    "name", &error);
+            if (error != "") {
+                fprintf(stderr, "ERROR: %s\n", error.string());
+                return -1;
+            }
+            if (name.length() > 0) {
                 // asdf     --> package.asdf
                 // .asdf  .a.b  --> package.asdf package.a.b
                 // asdf.adsf --> asdf.asdf
@@ -1821,10 +1838,16 @@ status_t
 writeProguardForLayouts(ProguardKeepSet* keep, const sp<AaptAssets>& assets)
 {
     status_t err;
-    sp<AaptDir> layout = assets->resDir(String8("layout"));
+    const Vector<sp<AaptDir> >& dirs = assets->resDirs();
+    const size_t K = dirs.size();
+    for (size_t k=0; k<K; k++) {
+        const sp<AaptDir>& d = dirs.itemAt(k);
+        const String8& dirName = d->getLeaf();
+        if ((dirName != String8("layout")) && (strncmp(dirName.string(), "layout-", 7) != 0)) {
+            continue;
+        }
 
-    if (layout != NULL) {
-        const KeyedVector<String8,sp<AaptGroup> > groups = layout->getFiles();
+        const KeyedVector<String8,sp<AaptGroup> > groups = d->getFiles();
         const size_t N = groups.size();
         for (size_t i=0; i<N; i++) {
             const sp<AaptGroup>& group = groups.valueAt(i);

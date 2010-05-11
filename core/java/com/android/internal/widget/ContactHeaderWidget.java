@@ -120,6 +120,14 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
         int CONTACT_STATUS_LABEL = 9;
     }
 
+    private interface PhotoQuery {
+        String[] COLUMNS = new String[] {
+            Photo.PHOTO
+        };
+
+        int PHOTO = 0;
+    }
+
     //Projection used for looking up contact id from phone number
     protected static final String[] PHONE_LOOKUP_PROJECTION = new String[] {
         PhoneLookup._ID,
@@ -144,6 +152,7 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
     private static final int TOKEN_CONTACT_INFO = 0;
     private static final int TOKEN_PHONE_LOOKUP = 1;
     private static final int TOKEN_EMAIL_LOOKUP = 2;
+    private static final int TOKEN_PHOTO_QUERY = 3;
 
     public ContactHeaderWidget(Context context) {
         this(context, null);
@@ -192,7 +201,7 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
             mNoPhotoResource = R.drawable.ic_contact_picture_3;
         }
 
-        mQueryHandler = new QueryHandler(mContentResolver);
+        resetAsyncQueryHandler();
     }
 
     public void enableClickListeners() {
@@ -228,10 +237,46 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
         @Override
         protected void onQueryComplete(int token, Object cookie, Cursor cursor) {
             try{
+                if (this != mQueryHandler) {
+                    Log.d(TAG, "onQueryComplete: discard result, the query handler is reset!");
+                    return;
+                }
+
                 switch (token) {
-                    case TOKEN_CONTACT_INFO: {
-                        bindContactInfo(cursor);
+                    case TOKEN_PHOTO_QUERY: {
+                        //Set the photo
+                        Bitmap photoBitmap = null;
+                        if (cursor != null && cursor.moveToFirst()
+                                && !cursor.isNull(PhotoQuery.PHOTO)) {
+                            byte[] photoData = cursor.getBlob(PhotoQuery.PHOTO);
+                            photoBitmap = BitmapFactory.decodeByteArray(photoData, 0,
+                                    photoData.length, null);
+                        }
+
+                        if (photoBitmap == null) {
+                            photoBitmap = loadPlaceholderPhoto(null);
+                        }
+                        mPhotoView.setImageBitmap(photoBitmap);
+                        if (cookie != null && cookie instanceof Uri) {
+                            mPhotoView.assignContactUri((Uri) cookie);
+                        }
                         invalidate();
+                        break;
+                    }
+                    case TOKEN_CONTACT_INFO: {
+                        if (cursor != null && cursor.moveToFirst()) {
+                            bindContactInfo(cursor);
+                            Uri lookupUri = Contacts.getLookupUri(cursor.getLong(ContactQuery._ID),
+                                    cursor.getString(ContactQuery.LOOKUP_KEY));
+                            startPhotoQuery(cursor.getLong(ContactQuery.PHOTO_ID),
+                                    lookupUri, false /* don't reset query handler */);
+                            invalidate();
+                        } else {
+                            // shouldn't really happen
+                            setDisplayName(null, null);
+                            setSocialSnippet(null);
+                            setPhoto(loadPlaceholderPhoto(null));
+                        }
                         break;
                     }
                     case TOKEN_PHONE_LOOKUP: {
@@ -239,10 +284,13 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
                             long contactId = cursor.getLong(PHONE_LOOKUP_CONTACT_ID_COLUMN_INDEX);
                             String lookupKey = cursor.getString(
                                     PHONE_LOOKUP_CONTACT_LOOKUP_KEY_COLUMN_INDEX);
-                            bindFromContactUri(Contacts.getLookupUri(contactId, lookupKey));
+                            bindFromContactUriInternal(Contacts.getLookupUri(contactId, lookupKey),
+                                    false /* don't reset query handler */);
                         } else {
                             String phoneNumber = (String) cookie;
                             setDisplayName(phoneNumber, null);
+                            setSocialSnippet(null);
+                            setPhoto(loadPlaceholderPhoto(null));
                             mPhotoView.assignContactFromPhone(phoneNumber, true);
                         }
                         break;
@@ -252,10 +300,13 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
                             long contactId = cursor.getLong(EMAIL_LOOKUP_CONTACT_ID_COLUMN_INDEX);
                             String lookupKey = cursor.getString(
                                     EMAIL_LOOKUP_CONTACT_LOOKUP_KEY_COLUMN_INDEX);
-                            bindFromContactUri(Contacts.getLookupUri(contactId, lookupKey));
+                            bindFromContactUriInternal(Contacts.getLookupUri(contactId, lookupKey),
+                                    false /* don't reset query handler */);
                         } else {
                             String emailAddress = (String) cookie;
                             setDisplayName(emailAddress, null);
+                            setSocialSnippet(null);
+                            setPhoto(loadPlaceholderPhoto(null));
                             mPhotoView.assignContactFromEmail(emailAddress, true);
                         }
                         break;
@@ -340,6 +391,7 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
     public void setSocialSnippet(CharSequence snippet) {
         if (snippet == null) {
             mStatusView.setVisibility(View.GONE);
+            mStatusAttributionView.setVisibility(View.GONE);
         } else {
             mStatusView.setText(snippet);
             mStatusView.setVisibility(View.VISIBLE);
@@ -360,24 +412,22 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
      * Convenience method for binding all available data from an existing
      * contact.
      *
-     * @param conatctUri a {Contacts.CONTENT_LOOKUP_URI} style URI.
+     * @param contactLookupUri a {Contacts.CONTENT_LOOKUP_URI} style URI.
      */
     public void bindFromContactLookupUri(Uri contactLookupUri) {
-        mContactUri = contactLookupUri;
-        startContactQuery(contactLookupUri);
+        bindFromContactUriInternal(contactLookupUri, true /* reset query handler */);
     }
 
     /**
      * Convenience method for binding all available data from an existing
      * contact.
      *
-     * @param conatctUri a {Contacts.CONTENT_URI} style URI.
+     * @param contactUri a {Contacts.CONTENT_URI} style URI.
+     * @param resetQueryHandler whether to use a new AsyncQueryHandler or not.
      */
-    public void bindFromContactUri(Uri contactUri) {
+    private void bindFromContactUriInternal(Uri contactUri, boolean resetQueryHandler) {
         mContactUri = contactUri;
-        long contactId = ContentUris.parseId(contactUri);
-
-        startContactQuery(contactUri);
+        startContactQuery(contactUri, resetQueryHandler);
     }
 
     /**
@@ -389,6 +439,8 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
      * address, one of them will be chosen to bind to.
      */
     public void bindFromEmail(String emailAddress) {
+        resetAsyncQueryHandler();
+
         mQueryHandler.startQuery(TOKEN_EMAIL_LOOKUP, emailAddress,
                 Uri.withAppendedPath(Email.CONTENT_LOOKUP_URI, Uri.encode(emailAddress)),
                 EMAIL_LOOKUP_PROJECTION, null, null, null);
@@ -403,50 +455,82 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
      * number, one of them will be chosen to bind to.
      */
     public void bindFromPhoneNumber(String number) {
+        resetAsyncQueryHandler();
+
         mQueryHandler.startQuery(TOKEN_PHONE_LOOKUP, number,
                 Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number)),
                 PHONE_LOOKUP_PROJECTION, null, null, null);
     }
 
     /**
-     * Method to force this widget to forget everything it knows about the contact.
-     * The widget isn't automatically updated or redrawn.
+     * startContactQuery
      *
+     * internal method to query contact by Uri.
+     *
+     * @param contactUri the contact uri
+     * @param resetQueryHandler whether to use a new AsyncQueryHandler or not
+     */
+    private void startContactQuery(Uri contactUri, boolean resetQueryHandler) {
+        if (resetQueryHandler) {
+            resetAsyncQueryHandler();
+        }
+
+        mQueryHandler.startQuery(TOKEN_CONTACT_INFO, null, contactUri, ContactQuery.COLUMNS,
+                null, null, null);
+    }
+
+    /**
+     * startPhotoQuery
+     *
+     * internal method to query contact photo by photo id and uri.
+     *
+     * @param photoId the photo id.
+     * @param lookupKey the lookup uri.
+     * @param resetQueryHandler whether to use a new AsyncQueryHandler or not.
+     */
+    protected void startPhotoQuery(long photoId, Uri lookupKey, boolean resetQueryHandler) {
+        if (resetQueryHandler) {
+            resetAsyncQueryHandler();
+        }
+
+        mQueryHandler.startQuery(TOKEN_PHOTO_QUERY, lookupKey,
+                ContentUris.withAppendedId(Data.CONTENT_URI, photoId), PhotoQuery.COLUMNS,
+                null, null, null);
+    }
+
+    /**
+     * Method to force this widget to forget everything it knows about the contact.
+     * We need to stop any existing async queries for phone, email, contact, and photos.
      */
     public void wipeClean() {
-        setPhoto(null);
+        resetAsyncQueryHandler();
+
+        setDisplayName(null, null);
+        setPhoto(loadPlaceholderPhoto(null));
+        setSocialSnippet(null);
+        setPresence(0);
         mContactUri = null;
         mExcludeMimes = null;
     }
 
-    private void startContactQuery(Uri contactUri) {
-        mQueryHandler.startQuery(TOKEN_CONTACT_INFO, null, contactUri, ContactQuery.COLUMNS,
-                null, null, null);
+
+    private void resetAsyncQueryHandler() {
+        // the api AsyncQueryHandler.cancelOperation() doesn't really work. Since we really
+        // need the old async queries to be cancelled, let's do it the hard way.
+        mQueryHandler = new QueryHandler(mContentResolver);
     }
 
     /**
      * Bind the contact details provided by the given {@link Cursor}.
      */
     protected void bindContactInfo(Cursor c) {
-        if (c == null || !c.moveToFirst()) return;
-
         // TODO: Bring back phonetic name
         final String displayName = c.getString(ContactQuery.DISPLAY_NAME);
-        final long contactId = c.getLong(ContactQuery._ID);
-        final String lookupKey = c.getString(ContactQuery.LOOKUP_KEY);
         final String phoneticName = null;
         this.setDisplayName(displayName, null);
 
         final boolean starred = c.getInt(ContactQuery.STARRED) != 0;
         mStarredView.setChecked(starred);
-
-        //Set the photo
-        Bitmap photoBitmap = loadContactPhoto(c.getLong(ContactQuery.PHOTO_ID), null);
-        if (photoBitmap == null) {
-            photoBitmap = loadPlaceholderPhoto(null);
-        }
-        mPhotoView.setImageBitmap(photoBitmap);
-        mPhotoView.assignContactUri(Contacts.getLookupUri(contactId, lookupKey));
 
         //Set the presence status
         if (!c.isNull(ContactQuery.CONTACT_PRESENCE_STATUS)) {
@@ -552,30 +636,6 @@ public class ContactHeaderWidget extends FrameLayout implements View.OnClickList
                 break;
             }
         }
-    }
-
-    private Bitmap loadContactPhoto(long photoId, BitmapFactory.Options options) {
-        Cursor photoCursor = null;
-        Bitmap photoBm = null;
-
-        try {
-            photoCursor = mContentResolver.query(
-                    ContentUris.withAppendedId(Data.CONTENT_URI, photoId),
-                    new String[] { Photo.PHOTO },
-                    null, null, null);
-
-            if (photoCursor != null && photoCursor.moveToFirst() && !photoCursor.isNull(0)) {
-                byte[] photoData = photoCursor.getBlob(0);
-                photoBm = BitmapFactory.decodeByteArray(photoData, 0,
-                        photoData.length, options);
-            }
-        } finally {
-            if (photoCursor != null) {
-                photoCursor.close();
-            }
-        }
-
-        return photoBm;
     }
 
     private Bitmap loadPlaceholderPhoto(BitmapFactory.Options options) {

@@ -21,14 +21,15 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothUuid;
-import android.os.ParcelUuid;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.Message;
+import android.os.ParcelUuid;
 import android.util.Log;
 
 import java.util.HashMap;
+import java.util.Set;
 
 /**
  * TODO: Move this to
@@ -292,9 +293,9 @@ class BluetoothEventLoop {
             mBluetoothService.setProperty(name, propValues[1]);
         } else if (name.equals("Pairable") || name.equals("Discoverable")) {
             String pairable = name.equals("Pairable") ? propValues[1] :
-                mBluetoothService.getProperty("Pairable");
+                mBluetoothService.getPropertyInternal("Pairable");
             String discoverable = name.equals("Discoverable") ? propValues[1] :
-                mBluetoothService.getProperty("Discoverable");
+                mBluetoothService.getPropertyInternal("Discoverable");
 
             // This shouldn't happen, unless Adapter Properties are null.
             if (pairable == null || discoverable == null)
@@ -492,6 +493,14 @@ class BluetoothEventLoop {
                 mBluetoothService.getBondState().getPendingOutgoingBonding();
         if (address.equals(pendingOutgoingAddress)) {
             // we initiated the bonding
+
+            // Check if its a dock
+            if (mBluetoothService.isBluetoothDock(address)) {
+                String pin = mBluetoothService.getDockPin();
+                mBluetoothService.setPin(address, BluetoothDevice.convertPinToBytes(pin));
+                return;
+            }
+
             BluetoothClass btClass = new BluetoothClass(mBluetoothService.getRemoteClass(address));
 
             // try 0000 once if the device looks dumb
@@ -538,12 +547,14 @@ class BluetoothEventLoop {
 
         boolean authorized = false;
         ParcelUuid uuid = ParcelUuid.fromString(deviceUuid);
+        BluetoothA2dp a2dp = new BluetoothA2dp(mContext);
+
         // Bluez sends the UUID of the local service being accessed, _not_ the
         // remote service
         if (mBluetoothService.isEnabled() &&
                 (BluetoothUuid.isAudioSource(uuid) || BluetoothUuid.isAvrcpTarget(uuid)
-                        || BluetoothUuid.isAdvAudioDist(uuid))) {
-            BluetoothA2dp a2dp = new BluetoothA2dp(mContext);
+                        || BluetoothUuid.isAdvAudioDist(uuid)) &&
+                        !isOtherSinkInNonDisconnectingState(address)) {
             BluetoothDevice device = mAdapter.getRemoteDevice(address);
             authorized = a2dp.getSinkPriority(device) > BluetoothA2dp.PRIORITY_OFF;
             if (authorized) {
@@ -556,6 +567,16 @@ class BluetoothEventLoop {
         }
         log("onAgentAuthorize(" + objectPath + ", " + deviceUuid + ") = " + authorized);
         return authorized;
+    }
+
+    boolean isOtherSinkInNonDisconnectingState(String address) {
+        BluetoothA2dp a2dp = new BluetoothA2dp(mContext);
+        Set<BluetoothDevice> devices = a2dp.getNonDisconnectedSinks();
+        if (devices.size() == 0) return false;
+        for(BluetoothDevice dev: devices) {
+            if (!dev.getAddress().equals(address)) return true;
+        }
+        return false;
     }
 
     private void onAgentCancel() {

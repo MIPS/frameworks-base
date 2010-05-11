@@ -4531,6 +4531,11 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
                     // Now use the delta to determine the actual amount of text
                     // we need.
                     partialEndOffset += delta;
+                    if (partialStartOffset > N) {
+                        partialStartOffset = N;
+                    } else if (partialStartOffset < 0) {
+                        partialStartOffset = 0;
+                    }
                     if (partialEndOffset > N) {
                         partialEndOffset = N;
                     } else if (partialEndOffset < 0) {
@@ -6296,7 +6301,8 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
             if (DEBUG_EXTRACT) Log.v(TAG, "beforeTextChanged start=" + start
                     + " before=" + before + " after=" + after + ": " + buffer);
 
-            if (AccessibilityManager.getInstance(mContext).isEnabled()) {
+            if (AccessibilityManager.getInstance(mContext).isEnabled()
+                    && !isPasswordInputType(mInputType)) {
                 mBeforeText = buffer.toString();
             }
 
@@ -6529,6 +6535,7 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
             // Reset this state; it will be re-set if super.onTouchEvent
             // causes focus to move to the view.
             mTouchFocusSelected = false;
+            mScrolled = false;
         }
         
         final boolean superResult = super.onTouchEvent(event);
@@ -6544,10 +6551,6 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
         }
 
         if ((mMovement != null || onCheckIsTextEditor()) && mText instanceof Spannable && mLayout != null) {
-            
-            if (action == MotionEvent.ACTION_DOWN) {
-                mScrolled = false;
-            }
             
             boolean handled = false;
             
@@ -6970,9 +6973,7 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
 
     @Override
     public boolean dispatchPopulateAccessibilityEvent(AccessibilityEvent event) {
-        boolean isPassword =
-            (mInputType & (EditorInfo.TYPE_MASK_CLASS | EditorInfo.TYPE_MASK_VARIATION)) ==
-            (EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_PASSWORD);
+        final boolean isPassword = isPasswordInputType(mInputType);
 
         if (!isPassword) {
             CharSequence text = getText();

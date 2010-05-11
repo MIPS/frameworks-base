@@ -30,10 +30,12 @@ import android.view.Surface;
  *
  **/
 public class RenderScript {
-    static final String LOG_TAG = "libRS_jni";
+    static final String LOG_TAG = "RenderScript_jni";
     private static final boolean DEBUG  = false;
     @SuppressWarnings({"UnusedDeclaration", "deprecation"})
     private static final boolean LOG_ENABLED = DEBUG ? Config.LOGD : Config.LOGV;
+    int mWidth;
+    int mHeight;
 
 
 
@@ -62,9 +64,11 @@ public class RenderScript {
     native int  nDeviceCreate();
     native void nDeviceDestroy(int dev);
     native void nDeviceSetConfig(int dev, int param, int value);
-    native int  nContextCreate(int dev, Surface sur, int ver, boolean useDepth);
+    native int  nContextCreate(int dev, int ver, boolean useDepth);
     native void nContextDestroy(int con);
-    native void nContextSetSurface(Surface sur);
+    native void nContextSetSurface(int w, int h, Surface sur);
+    native void nContextSetPriority(int p);
+    native void nContextDump(int bits);
 
     native void nContextBindRootScript(int script);
     native void nContextBindSampler(int sampler, int slot);
@@ -72,8 +76,6 @@ public class RenderScript {
     native void nContextBindProgramFragment(int pf);
     native void nContextBindProgramVertex(int pf);
     native void nContextBindProgramRaster(int pr);
-    native void nContextAddDefineI32(String name, int value);
-    native void nContextAddDefineF(String name, float value);
     native void nContextPause();
     native void nContextResume();
     native int nContextGetMessage(int[] data, boolean wait);
@@ -85,9 +87,9 @@ public class RenderScript {
     native void nObjDestroyOOB(int id);
     native int  nFileOpen(byte[] name);
 
-    native void nElementBegin();
-    native void nElementAdd(int kind, int type, boolean norm, int bits, String s);
-    native int  nElementCreate();
+
+    native int  nElementCreate(int type, int kind, boolean norm, int vecSize);
+    native int  nElementCreate2(int[] elements, String[] names);
 
     native void nTypeBegin(int elementID);
     native void nTypeAdd(int dim, int val);
@@ -163,17 +165,15 @@ public class RenderScript {
     native void nProgramRasterSetLineWidth(int pr, float v);
     native void nProgramRasterSetPointSize(int pr, float v);
 
-    native void nProgramFragmentBegin(int in, int out, boolean pointSpriteEnable);
-    native void nProgramFragmentBindTexture(int vpf, int slot, int a);
-    native void nProgramFragmentBindSampler(int vpf, int slot, int s);
-    native void nProgramFragmentSetSlot(int slot, boolean enable, int env, int vt);
-    native int  nProgramFragmentCreate();
+    native void nProgramBindConstants(int pv, int slot, int mID);
+    native void nProgramBindTexture(int vpf, int slot, int a);
+    native void nProgramBindSampler(int vpf, int slot, int s);
 
-    native void nProgramVertexBindAllocation(int pv, int mID);
-    native void nProgramVertexBegin(int inID, int outID);
-    native void nProgramVertexSetTextureMatrixEnable(boolean enable);
-    native void nProgramVertexAddLight(int id);
-    native int  nProgramVertexCreate();
+    native int  nProgramFragmentCreate(int[] params);
+    native int  nProgramFragmentCreate2(String shader, int[] params);
+
+    native int  nProgramVertexCreate(boolean texMat);
+    native int  nProgramVertexCreate2(String shader, int[] params);
 
     native void nLightBegin();
     native void nLightSetIsMono(boolean isMono);
@@ -196,14 +196,13 @@ public class RenderScript {
     private Surface mSurface;
     private MessageThread mMessageThread;
 
-
     Element mElement_USER_U8;
     Element mElement_USER_I8;
     Element mElement_USER_U16;
     Element mElement_USER_I16;
     Element mElement_USER_U32;
     Element mElement_USER_I32;
-    Element mElement_USER_FLOAT;
+    Element mElement_USER_F32;
 
     Element mElement_A_8;
     Element mElement_RGB_565;
@@ -213,8 +212,12 @@ public class RenderScript {
     Element mElement_RGBA_8888;
 
     Element mElement_INDEX_16;
-    Element mElement_XY_F32;
-    Element mElement_XYZ_F32;
+    Element mElement_POSITION_2;
+    Element mElement_POSITION_3;
+    Element mElement_TEXTURE_2;
+    Element mElement_NORMAL_3;
+    Element mElement_COLOR_U8_4;
+    Element mElement_COLOR_F32_4;
 
     ///////////////////////////////////////////////////////////////////////////////////
     //
@@ -226,6 +229,27 @@ public class RenderScript {
         }
     }
     public RSMessage mMessageCallback = null;
+
+    public enum Priority {
+        LOW (5),     //ANDROID_PRIORITY_BACKGROUND + 5
+        NORMAL (-4);  //ANDROID_PRIORITY_DISPLAY
+
+        int mID;
+        Priority(int id) {
+            mID = id;
+        }
+    }
+
+    void validate() {
+        if (mContext == 0) {
+            throw new IllegalStateException("Calling RS with no Context active.");
+        }
+    }
+
+    public void contextSetPriority(Priority p) {
+        validate();
+        nContextSetPriority(p.mID);
+    }
 
     private static class MessageThread extends Thread {
         RenderScript mRS;
@@ -259,30 +283,41 @@ public class RenderScript {
                     mRS.mMessageCallback.mID = msg;
                     mRS.mMessageCallback.run();
                 }
-                //Log.d("rs", "MessageThread msg " + msg + " v1 " + rbuf[0] + " v2 " + rbuf[1] + " v3 " +rbuf[2]);
+                //Log.d(LOG_TAG, "MessageThread msg " + msg + " v1 " + rbuf[0] + " v2 " + rbuf[1] + " v3 " +rbuf[2]);
             }
-            Log.d("rs", "MessageThread exiting.");
+            Log.d(LOG_TAG, "MessageThread exiting.");
         }
     }
 
-    public RenderScript(Surface sur, boolean useDepth, boolean forceSW) {
-        mSurface = sur;
+    public RenderScript(boolean useDepth, boolean forceSW) {
+        mSurface = null;
+        mWidth = 0;
+        mHeight = 0;
         mDev = nDeviceCreate();
         if(forceSW) {
             nDeviceSetConfig(mDev, 0, 1);
         }
-        mContext = nContextCreate(mDev, mSurface, 0, useDepth);
-        Element.initPredefined(this);
+        mContext = nContextCreate(mDev, 0, useDepth);
         mMessageThread = new MessageThread(this);
         mMessageThread.start();
+        Element.initPredefined(this);
     }
 
-    public void contextSetSurface(Surface sur) {
+    public void contextSetSurface(int w, int h, Surface sur) {
         mSurface = sur;
-        nContextSetSurface(mSurface);
+        mWidth = w;
+        mHeight = h;
+        validate();
+        nContextSetSurface(w, h, mSurface);
+    }
+
+    public void contextDump(int bits) {
+        validate();
+        nContextDump(bits);
     }
 
     public void destroy() {
+        validate();
         nContextDeinitToClient();
         mMessageThread.mRun = false;
 
@@ -298,10 +333,12 @@ public class RenderScript {
     }
 
     void pause() {
+        validate();
         nContextPause();
     }
 
     void resume() {
+        validate();
         nContextResume();
     }
 
@@ -342,22 +379,27 @@ public class RenderScript {
     }
 
     public void contextBindRootScript(Script s) {
+        validate();
         nContextBindRootScript(safeID(s));
     }
 
     public void contextBindProgramFragmentStore(ProgramStore p) {
+        validate();
         nContextBindProgramFragmentStore(safeID(p));
     }
 
     public void contextBindProgramFragment(ProgramFragment p) {
+        validate();
         nContextBindProgramFragment(safeID(p));
     }
 
     public void contextBindProgramRaster(ProgramRaster p) {
+        validate();
         nContextBindProgramRaster(safeID(p));
     }
 
     public void contextBindProgramVertex(ProgramVertex p) {
+        validate();
         nContextBindProgramVertex(safeID(p));
     }
 
