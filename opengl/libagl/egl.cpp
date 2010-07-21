@@ -546,7 +546,7 @@ EGLBoolean egl_window_surface_v2_t::swapBuffers()
     if (!dirtyRegion.isEmpty()) {
         dirtyRegion.andSelf(Rect(buffer->width, buffer->height));
         if (previousBuffer) {
-            const Region copyBack(Region::subtract(oldDirtyRegion, dirtyRegion));
+            Region copyBack(Region::subtract(oldDirtyRegion, dirtyRegion));
             if (!copyBack.isEmpty()) {
                 void* prevBits;
                 if (lock(previousBuffer, 
