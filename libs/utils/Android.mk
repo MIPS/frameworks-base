@@ -64,6 +64,10 @@ LOCAL_CFLAGS += -DMB_CUR_MAX=1
 endif
 endif
 
+ifeq ($(ARCH_HAS_BIGENDIAN),true)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
+
 include $(BUILD_HOST_STATIC_LIBRARY)
 
 
@@ -100,6 +104,10 @@ ifeq ($(TARGET_OS)-$(TARGET_ARCH),linux-x86)
 LOCAL_SHARED_LIBRARIES += libdl
 endif # linux-x86
 endif # sim
+
+ifeq ($(ARCH_HAS_BIGENDIAN),true)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
 
 LOCAL_MODULE:= libutils
 include $(BUILD_SHARED_LIBRARY)

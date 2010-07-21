@@ -27,6 +27,10 @@ LOCAL_SRC_FILES := \
 
 LOCAL_CFLAGS += -Wno-format-y2k
 
+ifeq ($(ARCH_HAS_BIGENDIAN),true)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
+
 LOCAL_C_INCLUDES += external/expat/lib
 LOCAL_C_INCLUDES += external/libpng
 LOCAL_C_INCLUDES += external/zlib
