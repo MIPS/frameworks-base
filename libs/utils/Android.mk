@@ -112,6 +112,11 @@ ifeq ($(TARGET_OS)-$(TARGET_ARCH),linux-x86)
 # This is needed on x86 to bring in dl_iterate_phdr for CallStack.cpp
 LOCAL_SHARED_LIBRARIES += libdl
 endif # linux-x86
+ifeq ($(TARGET_OS)-$(TARGET_ARCH),linux-mips)
+# This is needed on mips to bring in dl_iterate_phdr for CallStack.cpp
+LOCAL_SHARED_LIBRARIES += \
+	libdl
+endif # linux-mips
 endif # sim
 
 ifeq ($(ARCH_HAS_BIGENDIAN),true)

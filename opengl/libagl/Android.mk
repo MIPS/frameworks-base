@@ -38,6 +38,12 @@ ifeq ($(ARCH_ARM_HAVE_TLS_REGISTER),true)
     LOCAL_CFLAGS += -DHAVE_ARM_TLS_REGISTER
 endif
 
+ifeq ($(TARGET_ARCH),mips)
+    LOCAL_CFLAGS += -fstrict-aliasing
+    # The graphics code can generate division by zero
+    LOCAL_CFLAGS += -mno-check-zero-division
+endif
+
 ifneq ($(TARGET_SIMULATOR),true)
     # we need to access the private Bionic header <bionic_tls.h>
     # on ARM platforms, we need to mirror the ARCH_ARM_HAVE_TLS_REGISTER
