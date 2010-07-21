@@ -224,6 +224,10 @@ ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
 	LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK
 endif
 
+ifeq ($(ARCH_HAS_BIGENDIAN),true)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
+
 LOCAL_MODULE:= libandroid_runtime
 
 include $(BUILD_SHARED_LIBRARY)
