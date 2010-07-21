@@ -242,7 +242,11 @@ LOCAL_MODULE := framework
 LOCAL_MODULE_CLASS := JAVA_LIBRARIES
 
 # List of classes and interfaces which should be loaded by the Zygote.
+ifneq ($(strip $(TARGET_PRELOADED_CLASSES)),)
+LOCAL_JAVA_RESOURCE_FILES += $(TARGET_PRELOADED_CLASSES)
+else
 LOCAL_JAVA_RESOURCE_FILES += $(LOCAL_PATH)/preloaded-classes
+endif
 
 #LOCAL_JARJAR_RULES := $(LOCAL_PATH)/jarjar-rules.txt
 
