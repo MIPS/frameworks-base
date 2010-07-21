@@ -1,0 +1,11 @@
+This is the validation and benchmark program for assembly version of functions. Just build and push it into android to see the results.
+
+About the benchmark
+
+How to measure the performance improvement is a little tricky because gcc will do some optimization on the inline functions and may eliminate the function calls which we really care about. So I just use the return value res to tell gcc we want the return value of the function, so please do not eliminate it.
+
+Moreover because all the functions are inline, there maybe some difference between the assembly output of the c version functions. So the results is not 100% accurate but it can give us a quick glance.
+
+About gglFloatToFixed
+
+Function gglFloatToFixed assumes that the parameter is in register a0. That's true when using the software float but not true when using hardware float in gcc. Sigma has hardware FPU, so please do not validate gglFloatToFixed on sigmaboard!
