@@ -364,6 +364,21 @@ inline void compute_iterators_t::iterators0032(int32_t* it,
 {
     ::iterators0032(this, it, c0, c1, c2);
 }
+#elif defined(__mips__)
+void compute_iterators_t::iterators0032(int32_t* it,
+        int32_t c0, int32_t c1, int32_t c2) const
+{
+    const int s = m_area_scale - 16;
+    int32_t dc01 = (c1 - c0)>>s;
+    int32_t dc02 = (c2 - c0)>>s;
+    int64_t it64[3];
+    // 16.16 x 16.16 == 32.32
+    int64_t dcdx = gglMulii(dc01, m_dy02) + gglMulii(dc02, m_dy10);
+    int64_t dcdy = gglMulii(dc02, m_dx01) + gglMulii(dc01, m_dx20);
+    it[ 0] = (int32_t)((c0<<16) - ((dcdx*m_x0 + dcdy*m_y0)>>4));
+    it[ 1] = (int32_t)dcdx;
+    it[ 2] = (int32_t)dcdy;
+}
 #else
 void compute_iterators_t::iterators0032(int32_t* it,
         int32_t c0, int32_t c1, int32_t c2) const
