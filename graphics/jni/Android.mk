@@ -34,6 +34,10 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_CFLAGS +=
 
+ifeq ($(ARCH_HAS_BIGENDIAN),true)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
+
 LOCAL_LDLIBS := -lpthread
 LOCAL_ADDITIONAL_DEPENDENCIES := $(addprefix $(rs_generated_include_dir)/,rsgApiFuncDecl.h)
 LOCAL_MODULE:= librs_jni
