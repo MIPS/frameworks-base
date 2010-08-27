@@ -1450,6 +1450,15 @@ public abstract class Context {
      * @see android.net.wifi.WifiManager
      */
     public static final String WIFI_SERVICE = "wifi";
+    /**
+     * Use with {@link #getSystemService} to retrieve a {@link
+     * android.net.ethernet.EthernetManager} for handling management of
+     * Ethernet access.
+     *
+     * @see #getSystemService
+     * @see android.net.ethernet.EthernetManager
+     */
+    public static final String ETH_SERVICE = "ethernet";
     
     /**
      * Use with {@link #getSystemService} to retrieve a

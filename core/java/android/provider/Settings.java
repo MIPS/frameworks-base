@@ -2509,6 +2509,18 @@ public final class Settings {
          * Whether the Wi-Fi should be on.  Only the Wi-Fi service should touch this.
          */
         public static final String WIFI_ON = "wifi_on";
+         /*
+          * I shoudl not really stuff too much info this. After I make the entire thing to
+          * work, I should move this to a configuration file.
+          */
+         public static final String ETH_ON      = "eth_on";
+         public static final String ETH_MODE    = "eth_mode";
+         public static final String ETH_IP      = "eth_ip";
+         public static final String ETH_MASK    = "eth_mask";
+         public static final String ETH_DNS     = "eth_dns";
+         public static final String ETH_ROUTE   = "eth_route";
+         public static final String ETH_CONF    = "eth_conf";
+         public static final String ETH_IFNAME  = "eth_ifname";
 
         /**
          * Used to save the Wifi_ON state prior to tethering.

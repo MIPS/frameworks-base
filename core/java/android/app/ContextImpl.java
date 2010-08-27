@@ -72,6 +72,8 @@ import android.net.IThrottleManager;
 import android.net.Uri;
 import android.net.wifi.IWifiManager;
 import android.net.wifi.WifiManager;
+import android.net.ethernet.IEthernetManager;
+import android.net.ethernet.EthernetManager;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.DropBoxManager;
@@ -168,6 +170,7 @@ class ContextImpl extends Context {
     private static ConnectivityManager sConnectivityManager;
     private static ThrottleManager sThrottleManager;
     private static WifiManager sWifiManager;
+    private static EthernetManager sEthManager;
     private static LocationManager sLocationManager;
     private static final HashMap<File, SharedPreferencesImpl> sSharedPrefs =
             new HashMap<File, SharedPreferencesImpl>();
@@ -936,6 +939,8 @@ class ContextImpl extends Context {
             return getThrottleManager();
         } else if (WIFI_SERVICE.equals(name)) {
             return getWifiManager();
+        } else if (ETH_SERVICE.equals(name)) {
+            return getEthernetManager();
         } else if (NOTIFICATION_SERVICE.equals(name)) {
             return getNotificationManager();
         } else if (KEYGUARD_SERVICE.equals(name)) {
@@ -1055,6 +1060,18 @@ class ContextImpl extends Context {
             }
         }
         return sWifiManager;
+    }
+
+    private EthernetManager getEthernetManager()
+    {
+        synchronized (sSync) {
+            if (sEthManager == null) {
+                IBinder b = ServiceManager.getService(ETH_SERVICE);
+                IEthernetManager service = IEthernetManager.Stub.asInterface(b);
+                sEthManager = new EthernetManager(service, mMainThread.getHandler());
+            }
+        }
+        return sEthManager;
     }
 
     private NotificationManager getNotificationManager() {

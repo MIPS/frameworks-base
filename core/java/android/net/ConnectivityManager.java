@@ -190,10 +190,17 @@ public class ConnectivityManager
      * default connections.
      */
     public static final int TYPE_WIMAX       = 6;
+    /**
+     * The Default Ethernet data connection.  When active, all data traffic
+     * will use this connection by default.  Should not coexist with other
+     * default connections.
+     */
+    public static final int TYPE_ETH         = 7;
+
     /** {@hide} TODO: Need to adjust this for WiMAX. */
-    public static final int MAX_RADIO_TYPE   = TYPE_WIFI;
+    public static final int MAX_RADIO_TYPE   = TYPE_ETH;
     /** {@hide} TODO: Need to adjust this for WiMAX. */
-    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_HIPRI;
+    public static final int MAX_NETWORK_TYPE = TYPE_ETH;
 
     public static final int DEFAULT_NETWORK_PREFERENCE = TYPE_WIFI;
 

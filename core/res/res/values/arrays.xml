@@ -133,6 +133,7 @@
         <item><xliff:g id="id">mute</xliff:g></item>
         <item><xliff:g id="id">speakerphone</xliff:g></item>
         <item><xliff:g id="id">wifi</xliff:g></item>
+        <item><xliff:g id="id">ethernet</xliff:g></item>
         <item><xliff:g id="id">tty</xliff:g></item>
         <item><xliff:g id="id">bluetooth</xliff:g></item>
         <item><xliff:g id="id">gps</xliff:g></item>
