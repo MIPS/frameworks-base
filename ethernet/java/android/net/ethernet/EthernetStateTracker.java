@@ -331,6 +331,7 @@ public class EthernetStateTracker extends NetworkStateTracker {
 						 Slog.d(TAG, "DhcpHandler: DHCP request started");
 						 if (NetworkUtils.runDhcp(mInterfaceName, mDhcpInfo)) {
 							 event = EVENT_INTERFACE_CONFIGURATION_SUCCEEDED;
+							 mHWConnected = true; // If DHCP succeeded HW must be connected?
 							 Slog.d(TAG, "DhcpHandler: DHCP request succeeded: " + mDhcpInfo.toString());
 						 } else {
 							 event = EVENT_INTERFACE_CONFIGURATION_FAILED;
