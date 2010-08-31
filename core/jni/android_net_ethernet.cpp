@@ -212,11 +212,18 @@ namespace android {
     }
 
     static void add_int_to_list(interface_info_t *node) {
+        interface_info_t **ipp;
         /*
          *Todo: Lock here!!!!
          */
-        node->next = interfaces;
-        interfaces = node;
+	/*
+	 * Append to tail of list to preserve interface order
+	 * Linear scan is ok here - there will only be a few interfaces defined
+	 */
+	for (ipp = &interfaces; *ipp != NULL; )
+	    ipp = &((*ipp)->next);
+        *ipp = node;
+        node->next = NULL;
         total_int ++;
     }
 
