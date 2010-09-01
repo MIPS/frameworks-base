@@ -225,11 +225,14 @@ private:
         ssize_t             add(const sp<LayerBase>&, Vector< sp<LayerBase> >::compar_t);
         ssize_t             remove(const sp<LayerBase>&);
         ssize_t             reorder(const sp<LayerBase>&, Vector< sp<LayerBase> >::compar_t);
+        void                unsetChanged() { changed = false; }
+        bool                getChanged() const { return changed; }
         ssize_t             indexOf(const sp<LayerBase>& key, size_t guess=0) const;
         inline sp<LayerBase> operator [] (size_t i) const { return layers[i]; }
     private:
         KeyedVector< sp<LayerBase> , size_t> lookup;
         Vector< sp<LayerBase> >              layers;
+        bool                                 changed;
     };
 
     struct State {

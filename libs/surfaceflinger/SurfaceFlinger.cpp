@@ -127,6 +127,8 @@ ssize_t SurfaceFlinger::LayerVector::add(
     }
     layers.insertAt(layer, order);
     lookup.add(layer, order);
+    changed = true;
+
     return order;
 }
 
@@ -140,6 +142,7 @@ ssize_t SurfaceFlinger::LayerVector::remove(const sp<LayerBase>& layer)
                 this, int(index), layers[index].get(), layer.get());
         layers.removeItemsAt(index);
         lookup.removeItemsAt(keyIndex);
+        changed = true;
         const size_t count = lookup.size();
         for (size_t i=0 ; i<count ; i++) {
             if (lookup.valueAt(i) >= size_t(index)) {
@@ -157,8 +160,13 @@ ssize_t SurfaceFlinger::LayerVector::reorder(
 {
     // XXX: it's a little lame. but oh well...
     ssize_t err = remove(layer);
-    if (err >=0)
-        err = add(layer, cmp);
+    ssize_t err2;
+    if (err >=0) {
+        err2 = add(layer, cmp);
+	if (err == err2)
+		changed = false;
+    } else
+	    changed = false;
     return err;
 }
 
@@ -767,6 +775,11 @@ void SurfaceFlinger::computeVisibleRegions(
             const Region oldCoveredRegion = layer->coveredRegionScreen;
             const Region oldExposed = oldVisibleRegion - oldCoveredRegion;
             dirty = (visibleRegion&oldCoveredRegion) | (newExposed-oldExposed);
+
+	    // when the layers are not reordered, it is safe to assume
+	    // that the currently covered region is not dirty
+            if (!currentLayers.getChanged())
+                dirty.subtractSelf(coveredRegion);
         }
         dirty.subtractSelf(aboveOpaqueLayers);
 
@@ -789,6 +802,7 @@ void SurfaceFlinger::computeVisibleRegions(
     // invalidate the areas where a layer was removed
     dirtyRegion.orSelf(mDirtyRegionRemovedLayer);
     mDirtyRegionRemovedLayer.clear();
+    currentLayers.unsetChanged();
 
     mSecureFrameBuffer = secureFrameBuffer;
     opaqueRegion = aboveOpaqueLayers;
@@ -799,6 +813,7 @@ void SurfaceFlinger::commitTransaction()
 {
     mDrawingState = mCurrentState;
     mResizeTransationPending = false;
+    mCurrentState.layersSortedByZ.unsetChanged();
     mTransactionCV.broadcast();
 }
 
