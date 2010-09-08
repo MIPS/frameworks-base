@@ -48,6 +48,14 @@
 
 #define PAD_SIZE(s) (((s)+3)&~3)
 
+// Some types may require better alignment than given by PAD_SIZE
+// but we don't want to force all objects to the maximum alignment
+#ifdef __mips__
+#define PAD_ALIGN(o,t) ((sizeof(t)-(o))&(sizeof(t)-1))
+#else
+#define PAD_ALIGN(o,t) 0
+#endif
+
 // Note: must be kept in sync with android/os/StrictMode.java's PENALTY_GATHER
 #define STRICT_MODE_PENALTY_GATHER 0x100
 
@@ -810,10 +818,11 @@ const void* Parcel::readInplace(size_t len) const
 template<class T>
 status_t Parcel::readAligned(T *pArg) const {
     COMPILE_TIME_ASSERT_FUNCTION_SCOPE(PAD_SIZE(sizeof(T)) == sizeof(T));
+    int align = PAD_ALIGN(mDataPos,T);
 
-    if ((mDataPos+sizeof(T)) <= mDataSize) {
-        const void* data = mData+mDataPos;
-        mDataPos += sizeof(T);
+    if ((mDataPos+align+sizeof(T)) <= mDataSize) {
+        const void* data = mData+mDataPos+align;
+        mDataPos += align+sizeof(T);
         *pArg =  *reinterpret_cast<const T*>(data);
         return NO_ERROR;
     } else {
@@ -834,14 +843,15 @@ T Parcel::readAligned() const {
 template<class T>
 status_t Parcel::writeAligned(T val) {
     COMPILE_TIME_ASSERT_FUNCTION_SCOPE(PAD_SIZE(sizeof(T)) == sizeof(T));
+    int align = PAD_ALIGN(mDataPos,T);
 
-    if ((mDataPos+sizeof(val)) <= mDataCapacity) {
+    if ((mDataPos+align+sizeof(val)) <= mDataCapacity) {
 restart_write:
-        *reinterpret_cast<T*>(mData+mDataPos) = val;
-        return finishWrite(sizeof(val));
+        *reinterpret_cast<T*>(mData+mDataPos+align) = val;
+        return finishWrite(align+sizeof(val));
     }
 
-    status_t err = growData(sizeof(val));
+    status_t err = growData(align+sizeof(val));
     if (err == NO_ERROR) goto restart_write;
     return err;
 }
