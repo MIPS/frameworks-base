@@ -47,14 +47,6 @@
 
 #define PAD_SIZE(s) (((s)+3)&~3)
 
-// Some types may require better alignment than given by PAD_SIZE
-// but we don't want to force all objects to the maximum alignment
-#ifdef __mips__
-#define PAD_ALIGN(o,t) ((sizeof(t)-(o))&(sizeof(t)-1))
-#else
-#define PAD_ALIGN(o,t) 0
-#endif
-
 // XXX This can be made public if we want to provide
 // support for typed data.
 struct small_flat_data
@@ -584,10 +576,26 @@ status_t Parcel::writeFloat(float val)
     return writeAligned(val);
 }
 
+#if defined(__mips__) && defined(__mips_hard_float)
+
+status_t Parcel::writeDouble(double val)
+{
+  union {
+    double d;
+    unsigned long long ll;
+  } u;
+  u.d = val;
+  return writeAligned(u.ll);
+}
+
+#else
+
 status_t Parcel::writeDouble(double val)
 {
     return writeAligned(val);
 }
+
+#endif
 
 status_t Parcel::writeIntPtr(intptr_t val)
 {
@@ -788,11 +796,10 @@ const void* Parcel::readInplace(size_t len) const
 template<class T>
 status_t Parcel::readAligned(T *pArg) const {
     COMPILE_TIME_ASSERT_FUNCTION_SCOPE(PAD_SIZE(sizeof(T)) == sizeof(T));
-    int align = PAD_ALIGN(mDataPos,T);
 
-    if ((mDataPos+align+sizeof(T)) <= mDataSize) {
-        const void* data = mData+mDataPos+align;
-        mDataPos += align+sizeof(T);
+    if ((mDataPos+sizeof(T)) <= mDataSize) {
+        const void* data = mData+mDataPos;
+        mDataPos += sizeof(T);
         *pArg =  *reinterpret_cast<const T*>(data);
         return NO_ERROR;
     } else {
@@ -813,15 +820,14 @@ T Parcel::readAligned() const {
 template<class T>
 status_t Parcel::writeAligned(T val) {
     COMPILE_TIME_ASSERT_FUNCTION_SCOPE(PAD_SIZE(sizeof(T)) == sizeof(T));
-    int align = PAD_ALIGN(mDataPos,T);
 
-    if ((mDataPos+align+sizeof(val)) <= mDataCapacity) {
+    if ((mDataPos+sizeof(val)) <= mDataCapacity) {
 restart_write:
-        *reinterpret_cast<T*>(mData+mDataPos+align) = val;
-        return finishWrite(align+sizeof(val));
+        *reinterpret_cast<T*>(mData+mDataPos) = val;
+        return finishWrite(sizeof(val));
     }
 
-    status_t err = growData(align+sizeof(val));
+    status_t err = growData(sizeof(val));
     if (err == NO_ERROR) goto restart_write;
     return err;
 }
@@ -859,6 +865,31 @@ float Parcel::readFloat() const
     return readAligned<float>();
 }
 
+#if defined(__mips__) && defined(__mips_hard_float)
+
+status_t Parcel::readDouble(double *pArg) const
+{
+  union {
+    double d;
+    unsigned long long ll;
+  } u;
+  status_t status;
+  status = readAligned(&u.ll);
+  *pArg = u.d;
+  return status;
+}
+
+double Parcel::readDouble() const
+{
+  union {
+    double d;
+    unsigned long long ll;
+  } u;
+  u.ll = readAligned<unsigned long long>();
+  return u.d;
+}
+#else
+
 status_t Parcel::readDouble(double *pArg) const
 {
     return readAligned(pArg);
@@ -869,6 +900,7 @@ double Parcel::readDouble() const
 {
     return readAligned<double>();
 }
+#endif
 
 status_t Parcel::readIntPtr(intptr_t *pArg) const
 {
