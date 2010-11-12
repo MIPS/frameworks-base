@@ -97,6 +97,7 @@ GL_API void GL_APIENTRY glWeightPointerOESBounds(GLint size, GLenum type,
 
 #if USE_FAST_TLS_KEY && !CHECK_FOR_GL_ERRORS
 
+  #if defined(__arm__)
     #ifdef HAVE_ARM_TLS_REGISTER
         #define GET_TLS(reg) \
             "mrc p15, 0, " #reg ", c13, c0, 3 \n"
@@ -125,6 +126,40 @@ GL_API void GL_APIENTRY glWeightPointerOESBounds(GLint size, GLenum type,
         CALL_GL_API(_api, __VA_ARGS__) \
         return 0; // placate gcc's warnings. never reached.
 
+  #elif defined(__mips__)
+
+#define API_ENTRY(_api) __attribute__((noinline)) _api
+
+    #define CALL_GL_API(_api, ...)				 \
+        unsigned int tls, t0, fn;				 \
+        asm volatile(                                            \
+	    ".set  push\n\t"				         \
+	    ".set  noreorder\n\t"				 \
+	    ".set mips32r2\n\t"					 \
+            "rdhwr %[tls], $29\n\t"				 \
+            "lw	   %[t0], %[OPENGL_API](%[tls])\n\t"		 \
+	    "beqz  %[t0], 1f\n\t"				 \
+	    " move %[fn],$ra\n\t"				 \
+            "lw    %[fn], %[API](%[t0])\n\t"			 \
+            "1:\n\t"						 \
+            "j     %[fn]\n\t"					 \
+	    " nop\n\t"						 \
+	    ".set  pop\n\t"					 \
+            : [fn] "=c"(fn),					 \
+	      [tls] "=&r"(tls),					 \
+	      [t0] "=&r"(t0)					 \
+            : [OPENGL_API] "I"(TLS_SLOT_OPENGL_API*4),		 \
+              [API] "I"(__builtin_offsetof(gl_hooks_t, gl._api)) \
+            :							 \
+            );
+
+    #define CALL_GL_API_RETURN(_api, ...) \
+        CALL_GL_API(_api, __VA_ARGS__) \
+        return 0; // placate gcc's warnings. never reached.
+
+  #else
+    #error Unsupported architecture
+  #endif
 #else
 
     #if CHECK_FOR_GL_ERRORS
