@@ -1839,6 +1839,7 @@ public final class ViewRoot extends Handler implements ViewParent,
     public final static int FINISH_INPUT_CONNECTION = 1012;
     public final static int CHECK_FOCUS = 1013;
     public final static int CLOSE_SYSTEM_DIALOGS = 1014;
+    public final static int DISPATCH_MOUSE = 1015;
 
     @Override
     public void handleMessage(Message msg) {
@@ -1893,6 +1894,18 @@ public final class ViewRoot extends Handler implements ViewParent,
                 if (msg.arg1 != 0) {
                     finishInputEvent();
                 }
+            }
+        } break;
+        case DISPATCH_MOUSE: {
+            MotionEvent event = (MotionEvent) msg.obj;
+            try {
+                deliverPointerEvent(event);
+            } finally {
+                event.recycle();
+                if (msg.arg1 != 0) {
+                    finishInputEvent();
+                }
+                if (LOCAL_LOGV || WATCH_POINTER) Log.i(TAG, "Done dispatching!");
             }
         } break;
         case DISPATCH_APP_VISIBILITY:
@@ -2837,7 +2850,9 @@ public final class ViewRoot extends Handler implements ViewParent,
 
     private void dispatchMotion(MotionEvent event, boolean sendDone) {
         int source = event.getSource();
-        if ((source & InputDevice.SOURCE_CLASS_POINTER) != 0) {
+        if ((source & InputDevice.SOURCE_MOUSE) != 0) {
+            dispatchMouse(event, sendDone);
+        } else if ((source & InputDevice.SOURCE_CLASS_POINTER) != 0) {
             dispatchPointer(event, sendDone);
         } else if ((source & InputDevice.SOURCE_CLASS_TRACKBALL) != 0) {
             dispatchTrackball(event, sendDone);
@@ -2850,6 +2865,17 @@ public final class ViewRoot extends Handler implements ViewParent,
         }
     }
 
+    public void dispatchMouse(MotionEvent event) {
+        dispatchPointer(event, false);
+    }
+
+    private void dispatchMouse(MotionEvent event, boolean sendDone) {
+    	Message msg = obtainMessage(DISPATCH_MOUSE);
+        msg.obj = event;
+        msg.arg1 = sendDone ? 1 : 0;
+        sendMessageAtTime(msg, event.getEventTime());
+    }
+    
     public void dispatchPointer(MotionEvent event) {
         dispatchPointer(event, false);
     }

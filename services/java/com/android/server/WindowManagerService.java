@@ -43,6 +43,7 @@ import com.android.internal.view.IInputContext;
 import com.android.internal.view.IInputMethodClient;
 import com.android.internal.view.IInputMethodManager;
 import com.android.internal.view.WindowManagerPolicyThread;
+import com.android.internal.view.BaseInputHandler;
 import com.android.server.am.BatteryStatsService;
 
 import android.Manifest;
@@ -60,6 +61,7 @@ import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.Region;
@@ -103,6 +105,8 @@ import android.view.IWindowSession;
 import android.view.InputChannel;
 import android.view.InputDevice;
 import android.view.InputEvent;
+import android.view.InputQueue;
+import android.view.InputHandler;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.Surface;
@@ -479,6 +483,14 @@ public class WindowManagerService extends IWindowManager.Stub
 
     final InputManager mInputManager;
 
+    // RT-RK
+    Surface mMouseSurface;
+    boolean mMouseDisplayed = false;
+    int mMlx = 100;
+    int mMly = 100;
+    int mMlw = 20;
+    int mMlh = 20;
+
     // Who is holding the screen on.
     Session mHoldingScreenOn;
     PowerManager.WakeLock mHoldingScreenWakeLock;
@@ -643,6 +655,11 @@ public class WindowManagerService extends IWindowManager.Stub
         }
 
         mInputManager.start();
+
+        // RT-RK
+        mPointerLocationInputChannel = monitorInput("PointerLocationMouse");
+        InputQueue.registerInputChannel(mPointerLocationInputChannel,
+        		mPointerLocationInputHandler, Looper.myQueue());
 
         // Add ourself to the Watchdog monitors.
         Watchdog.getInstance().addMonitor(this);
@@ -7741,6 +7758,71 @@ public class WindowManagerService extends IWindowManager.Stub
     }
     static final Animation sDummyAnimation = new DummyAnimation();
 
+    
+    
+
+    // -------------------------------------------------------------
+    // Imput Handler
+    // -------------------------------------------------------------
+
+    final Object mLock = new Object();
+    
+    private Runnable mFinishedCallback;
+    private InputChannel mPointerLocationInputChannel;
+    
+    private final InputHandler mPointerLocationInputHandler = new BaseInputHandler() {
+        @Override
+        public void handleMotion(MotionEvent event, Runnable finishedCallback) {
+            finishedCallback.run();
+            
+            synchronized (mLock)
+            {
+            	if (DEBUG_INPUT) Log.v(TAG, "handleMotion WM DOSO EVENT");
+                
+                if ((event.getSource() & InputDevice.SOURCE_MOUSE) != 0)
+                {
+                	if (DEBUG_INPUT) Log.v(TAG, "dispatchMotion WM source & InputDevice.SOURCE_MOUSE: " + event);
+                    
+                	int mcx = (int)event.getX();
+                    int mcy = (int)event.getY();
+
+                    if (mMouseSurface != null && (mMlx != mcx || mMly != mcy)) {
+                        Surface.openTransaction();
+                        if (DEBUG_INPUT)
+                            Slog.i(TAG, "Open transaction for the mouse surface");
+                        WindowState top =
+                            (WindowState)mWindows.get(mWindows.size() - 1);
+                        try {
+                            if (DEBUG_INPUT)
+                                Slog.i(TAG, "mPointerLocationInputHandler Move surf, x: " +
+                                      Integer.toString(mcx) + " y:"
+                                      + Integer.toString(mcy));
+
+                            mMouseSurface.setPosition(mcx, mcy);
+                            mMouseSurface.setLayer(top.mAnimLayer + 1);
+                            
+                            if(!mMouseDisplayed)
+                            {
+                            	mMouseDisplayed = true;
+                            }
+                            
+                            if (mMouseDisplayed)
+                            {
+                                mMouseSurface.show();
+                            }
+                            
+                            mMlx = mcx;
+                            mMly = mcy;
+                        } catch (RuntimeException e) {
+                            Slog.e(TAG, "Failure showing mouse surface",e);
+                        }
+                        Surface.closeTransaction();
+                    }
+                }
+            }
+        }
+    };
+    
     // -------------------------------------------------------------
     // Async Handler
     // -------------------------------------------------------------
@@ -8497,6 +8579,65 @@ public class WindowManagerService extends IWindowManager.Stub
             createWatermark = true;
         }
 
+        // RT-RK
+        if (mMouseSurface == null)
+        {
+            int mMx, mMy, mMw, mMh;
+            Canvas mCanvas;
+            Path mPath = new Path();
+
+            if (DEBUG_INPUT)
+                Slog.i(TAG, "Create Mouse Surface");
+
+            mMw = 12;
+            mMh = 20;
+            mMx = (mDisplay.getWidth() - mMw) / 2;
+            mMy = (mDisplay.getHeight() - mMh) / 2;
+
+            try
+            {
+
+                /*
+                 *First Mouse event, create Surface
+                 */
+
+                mMouseSurface =
+                    new Surface(mFxSession,
+                                0, -1, mMw, mMh,
+                                PixelFormat.TRANSPARENT,
+                                Surface.FX_SURFACE_NORMAL);
+                mCanvas = mMouseSurface.lockCanvas(null);
+                Paint tPaint = new Paint();
+                tPaint.setStyle(Paint.Style.STROKE);
+                tPaint.setStrokeWidth(2);
+                tPaint.setColor(0xffffffff);
+                mPath.moveTo(0.0f, 0.0f);
+                mPath.lineTo(12.0f, 12.0f);
+                mPath.lineTo(7.0f, 12.0f);
+                mPath.lineTo(11.0f, 20.0f);
+                mPath.lineTo(8.0f, 21.0f);
+                mPath.lineTo(4.0f, 13.0f);
+                mPath.lineTo(0.0f, 17.0f);
+                mPath.close();
+                mCanvas.clipPath(mPath);
+                mCanvas.drawColor(0xff000000);
+                mCanvas.drawPath(mPath, tPaint);
+
+                mMouseSurface.unlockCanvasAndPost(mCanvas);
+                mMouseSurface.openTransaction();
+                mMouseSurface.setSize(mMw, mMh);
+                mMouseSurface.closeTransaction();
+
+            } catch (Exception e)
+            {
+                Slog.e(TAG, "Exception creating mouse surface",e);
+            }
+            mMlx = mMx;
+            mMly = mMy;
+            mMlw = mMw;
+            mMlh = mMh;
+        }
+
         if (SHOW_TRANSACTIONS) Slog.i(TAG, ">>> OPEN TRANSACTION");
 
         Surface.openTransaction();
@@ -8504,6 +8645,7 @@ public class WindowManagerService extends IWindowManager.Stub
         if (createWatermark) {
             createWatermark();
         }
+        
         if (mWatermark != null) {
             mWatermark.positionSurface(dw, dh);
         }
@@ -9522,7 +9664,35 @@ public class WindowManagerService extends IWindowManager.Stub
                 mBlurShown = false;
             }
 
-            if (SHOW_TRANSACTIONS) Slog.i(TAG, "<<< CLOSE TRANSACTION");
+            if (SHOW_TRANSACTIONS)
+            {
+            	Slog.i(TAG, "<<< CLOSE TRANSACTION");
+            }
+            
+            // RT-RK
+            // FOURTH LOOP: Display Mouse
+            if (mMouseSurface != null)
+            {
+                if (mMouseDisplayed)
+                {
+                    WindowState top =
+                        (WindowState)mWindows.get(mWindows.size() - 1);
+                    try
+                    {
+                        if (DEBUG_INPUT)
+                            Slog.i(TAG, "FOURTH LOOP Move surf, x: " +
+                                   Integer.toString(mMlx) + " y:"
+                                   + Integer.toString(mMly));
+                        mMouseSurface.show();
+                        mMouseSurface.setPosition(mMlx, mMly);
+                        mMouseSurface.setLayer(top.mAnimLayer + 1);
+                    } catch (RuntimeException e) {
+                        Slog.e(TAG, "Failure showing mouse surface", e);
+                    }
+                } else {
+                    mMouseSurface.hide();
+                }
+            }
         } catch (RuntimeException e) {
             Slog.e(TAG, "Unhandled exception in Window Manager", e);
         }

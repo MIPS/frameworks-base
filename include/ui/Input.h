@@ -138,7 +138,8 @@ struct InputConfiguration {
         NAVIGATION_NONAV = 1,
         NAVIGATION_DPAD = 2,
         NAVIGATION_TRACKBALL = 3,
-        NAVIGATION_WHEEL = 4
+        NAVIGATION_WHEEL = 4,
+        NAVIGATION_MOUSE = 5
     };
 
     int32_t touchScreen;
