@@ -505,6 +505,91 @@ private:
 };
 
 
+
+
+class MouseInputMapper : public InputMapper
+{
+public:
+    MouseInputMapper(InputDevice* device, int32_t associatedDisplayId);
+    virtual ~MouseInputMapper();
+
+    virtual uint32_t getSources();
+    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
+    virtual void dump(String8& dump);
+    virtual void reset();
+    virtual void configure();
+    virtual void process(const RawEvent* rawEvent);
+
+    virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
+
+    virtual bool configureSurfaceLocked();
+
+private:
+    // Amount that trackball needs to move in order to generate a key event.
+    static const int32_t MOUSE_MOVEMENT_THRESHOLD = 1;
+
+    Mutex mLock;
+
+    int32_t mAssociatedDisplayId;
+
+    struct Accumulator
+    {
+        enum
+        {
+            FIELD_BTN_LEFT = 1,
+            FIELD_REL_X = 2,
+            FIELD_REL_Y = 4,
+            FIELD_BTN_RIGHT = 8,
+            FIELD_BTN_MIDDLE = 16
+        };
+
+        uint32_t fields;
+
+        bool btnLeft;
+        bool btnMiddle;
+        bool btnRight;
+
+        int32_t xPos;
+        int32_t yPos;
+
+        inline void clear()
+        {
+            fields = 0;
+        }
+    } mAccumulator;
+
+    float mXScale;
+    float mYScale;
+    float mXPrecision;
+    float mYPrecision;
+
+    struct LockedState
+    {
+        // The surface orientation and width and height set by configureSurfaceLocked().
+        int32_t surfaceOrientation;
+        int32_t surfaceWidth, surfaceHeight;
+
+        bool down;
+        nsecs_t downTime;
+
+        // Oriented motion ranges for input device info.
+        struct OrientedRanges
+        {
+            InputDeviceInfo::MotionRange x;
+            InputDeviceInfo::MotionRange y;
+        } orientedRanges;
+    } mLocked;
+
+    void initializeLocked();
+
+    void sync(nsecs_t when);
+};
+
+
+
+
+
+
 class TouchInputMapper : public InputMapper {
 public:
     TouchInputMapper(InputDevice* device, int32_t associatedDisplayId);

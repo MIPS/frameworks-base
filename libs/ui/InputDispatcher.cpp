@@ -734,11 +734,16 @@ bool InputDispatcher::dispatchMotionLocked(
     }
 
     bool isPointerEvent = entry->source & AINPUT_SOURCE_CLASS_POINTER;
+    bool isMouseEvent = entry->source & AINPUT_SOURCE_MOUSE;
 
     // Identify targets.
     if (! mCurrentInputTargetsValid) {
         int32_t injectionResult;
-        if (isPointerEvent) {
+        if (isMouseEvent) {
+            // Mouse event.  (eg. mouse)
+            injectionResult = findFocusedWindowTargetsLocked(currentTime,
+                    entry, nextWakeupTime);
+        } else if (isPointerEvent) {
             // Pointer event.  (eg. touchscreen)
             injectionResult = findTouchedWindowTargetsLocked(currentTime,
                     entry, nextWakeupTime);
