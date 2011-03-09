@@ -7777,13 +7777,13 @@ public class WindowManagerService extends IWindowManager.Stub
             
             synchronized (mLock)
             {
-            	if (DEBUG_INPUT) Log.v(TAG, "handleMotion WM DOSO EVENT");
+            	if (DEBUG_INPUT) Log.v(TAG, "handleMotion WM DOSO EVENT (" + event.getSource() + ")");
                 
-                if ((event.getSource() & InputDevice.SOURCE_MOUSE) != 0)
+                if ((event.getSource() & (InputDevice.SOURCE_MOUSE & ~InputDevice.SOURCE_CLASS_POINTER)) != 0)
                 {
-                	if (DEBUG_INPUT) Log.v(TAG, "dispatchMotion WM source & InputDevice.SOURCE_MOUSE: " + event);
+                    if (DEBUG_INPUT) Log.v(TAG, "dispatchMotion WM source & InputDevice.SOURCE_MOUSE: " + event);
                     
-                	int mcx = (int)event.getX();
+                    int mcx = (int)event.getX();
                     int mcy = (int)event.getY();
 
                     if (mMouseSurface != null && (mMlx != mcx || mMly != mcy)) {

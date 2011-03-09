@@ -720,7 +720,7 @@ int EventHub::openDevice(const char *deviceName) {
         if (ioctl(fd, EVIOCGBIT(EV_REL, sizeof(rel_bitmask)), rel_bitmask) >= 0) {
             if (test_bit(REL_X, rel_bitmask) && test_bit(REL_Y, rel_bitmask)) {
                 if (test_bit(BTN_LEFT, key_bitmask) && test_bit(BTN_RIGHT, key_bitmask)) {
-			device->classes |= INPUT_DEVICE_CLASS_MOUSE;				
+			device->classes |= INPUT_DEVICE_CLASS_MOUSE;
 		} else {
 			device->classes |= INPUT_DEVICE_CLASS_TRACKBALL;
 		}
@@ -736,11 +736,13 @@ int EventHub::openDevice(const char *deviceName) {
         // Is this a new modern multi-touch driver?
         if (test_bit(ABS_MT_POSITION_X, abs_bitmask)
                 && test_bit(ABS_MT_POSITION_Y, abs_bitmask)) {
+            device->classes &= ~INPUT_DEVICE_CLASS_MOUSE;
             device->classes |= INPUT_DEVICE_CLASS_TOUCHSCREEN | INPUT_DEVICE_CLASS_TOUCHSCREEN_MT;
 
         // Is this an old style single-touch driver?
         } else if (test_bit(BTN_TOUCH, key_bitmask)
                 && test_bit(ABS_X, abs_bitmask) && test_bit(ABS_Y, abs_bitmask)) {
+            device->classes &= ~INPUT_DEVICE_CLASS_MOUSE;
             device->classes |= INPUT_DEVICE_CLASS_TOUCHSCREEN;
         }
     }
