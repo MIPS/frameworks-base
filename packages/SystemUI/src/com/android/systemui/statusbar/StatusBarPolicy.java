@@ -452,7 +452,7 @@ public class StatusBarPolicy {
 
         //ethernet
         mService.setIcon("ethernet", sEthImages[1], 0);
-        mService.setIconVisibility("ethernet", true);
+        mService.setIconVisibility("ethernet", false);
         // TTY status
         mService.setIcon("tty",  R.drawable.stat_sys_tty_mode, 0);
         mService.setIconVisibility("tty", false);
