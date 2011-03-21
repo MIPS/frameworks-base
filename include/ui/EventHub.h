@@ -119,6 +119,9 @@ enum {
 
     /* The input device has switches. */
     INPUT_DEVICE_CLASS_SWITCH        = 0x00000080,
+    
+    /* The input device is a mouse */
+    INPUT_DEVICE_CLASS_MOUSE         = 0x00000100,
 };
 
 /*
@@ -238,7 +241,7 @@ private:
         const String8   path;
         String8         name;
         uint32_t        classes;
-        uint8_t*        keyBitmask;
+        uint32_t*       keyBitmask;
         KeyLayoutMap*   layoutMap;
         String8         keylayoutFilename;
         int             fd;

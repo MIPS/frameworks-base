@@ -185,6 +185,7 @@ LOCAL_SRC_FILES += \
 	telephony/java/com/android/internal/telephony/IIccPhoneBook.aidl \
 	telephony/java/com/android/internal/telephony/ISms.aidl \
 	wifi/java/android/net/wifi/IWifiManager.aidl \
+	ethernet/java/android/net/ethernet/IEthernetManager.aidl \
 	telephony/java/com/android/internal/telephony/IExtendedNetworkService.aidl \
 	vpn/java/android/net/vpn/IVpnService.aidl \
 	voip/java/android/net/sip/ISipSession.aidl \
@@ -211,7 +212,11 @@ LOCAL_NO_EMMA_INSTRUMENT := true
 LOCAL_NO_EMMA_COMPILE := true
 
 # List of classes and interfaces which should be loaded by the Zygote.
+ifneq ($(strip $(TARGET_PRELOADED_CLASSES)),)
+LOCAL_JAVA_RESOURCE_FILES += $(TARGET_PRELOADED_CLASSES)
+else
 LOCAL_JAVA_RESOURCE_FILES += $(LOCAL_PATH)/preloaded-classes
+endif
 
 #LOCAL_JARJAR_RULES := $(LOCAL_PATH)/jarjar-rules.txt
 

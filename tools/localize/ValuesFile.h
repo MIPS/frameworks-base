@@ -6,6 +6,7 @@
 #include "XMLHandler.h"
 #include "Values.h"
 
+#include <cstdio>
 #include <string>
 #include <set>
 

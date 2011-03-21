@@ -66,6 +66,7 @@ LOCAL_SRC_FILES:= \
 	android_net_NetUtils.cpp \
 	android_net_TrafficStats.cpp \
 	android_net_wifi_Wifi.cpp \
+	android_net_ethernet.cpp \
 	android_nio_utils.cpp \
 	android_nfc_NdefMessage.cpp \
 	android_nfc_NdefRecord.cpp \
@@ -222,6 +223,10 @@ endif
 
 ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
 	LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK
+endif
+
+ifeq ($(ARCH_HAS_BIGENDIAN),true)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
 endif
 
 LOCAL_MODULE:= libandroid_runtime

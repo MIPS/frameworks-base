@@ -72,6 +72,10 @@ ifeq ($(HOST_OS),darwin)
 LOCAL_CFLAGS += -DOFF_T_IS_64_BIT
 endif
 
+ifeq ($(ARCH_HAS_BIGENDIAN),true)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
+
 include $(BUILD_HOST_STATIC_LIBRARY)
 
 
@@ -108,7 +112,16 @@ ifeq ($(TARGET_OS)-$(TARGET_ARCH),linux-x86)
 # This is needed on x86 to bring in dl_iterate_phdr for CallStack.cpp
 LOCAL_SHARED_LIBRARIES += libdl
 endif # linux-x86
+ifeq ($(TARGET_OS)-$(TARGET_ARCH),linux-mips)
+# This is needed on mips to bring in dl_iterate_phdr for CallStack.cpp
+LOCAL_SHARED_LIBRARIES += \
+	libdl
+endif # linux-mips
 endif # sim
+
+ifeq ($(ARCH_HAS_BIGENDIAN),true)
+LOCAL_CFLAGS += -DBYTE_ORDER_BIG_ENDIAN=1
+endif
 
 LOCAL_MODULE:= libutils
 include $(BUILD_SHARED_LIBRARY)
