@@ -215,6 +215,8 @@ public final class ViewRoot extends Handler implements ViewParent,
 
     final ViewConfiguration mViewConfiguration;
 
+    static IWindowManager wm;
+
     /**
      * see {@link #playSoundEffect(int)}
      */
@@ -227,9 +229,8 @@ public final class ViewRoot extends Handler implements ViewParent,
             if (!mInitialized) {
                 try {
                     InputMethodManager imm = InputMethodManager.getInstance(mainLooper);
-                    sWindowSession = IWindowManager.Stub.asInterface(
-                            ServiceManager.getService("window"))
-                            .openSession(imm.getClient(), imm.getInputContext());
+                    wm = IWindowManager.Stub.asInterface(ServiceManager.getService("window"));
+                    sWindowSession = wm.openSession(imm.getClient(), imm.getInputContext());
                     mInitialized = true;
                 } catch (RemoteException e) {
                 }
@@ -1839,7 +1840,6 @@ public final class ViewRoot extends Handler implements ViewParent,
     public final static int FINISH_INPUT_CONNECTION = 1012;
     public final static int CHECK_FOCUS = 1013;
     public final static int CLOSE_SYSTEM_DIALOGS = 1014;
-    public final static int DISPATCH_MOUSE = 1015;
 
     @Override
     public void handleMessage(Message msg) {
@@ -1896,18 +1896,7 @@ public final class ViewRoot extends Handler implements ViewParent,
                 }
             }
         } break;
-        case DISPATCH_MOUSE: {
-            MotionEvent event = (MotionEvent) msg.obj;
-            try {
-                deliverPointerEvent(event);
-            } finally {
-                event.recycle();
-                if (msg.arg1 != 0) {
-                    finishInputEvent();
-                }
-                if (LOCAL_LOGV || WATCH_POINTER) Log.i(TAG, "Done dispatching!");
-            }
-        } break;
+
         case DISPATCH_APP_VISIBILITY:
             handleAppVisibility(msg.arg1 != 0);
             break;
@@ -2851,7 +2840,13 @@ public final class ViewRoot extends Handler implements ViewParent,
     private void dispatchMotion(MotionEvent event, boolean sendDone) {
         int source = event.getSource();
         if ((source & (InputDevice.SOURCE_MOUSE & ~InputDevice.SOURCE_CLASS_POINTER)) != 0) {
-            dispatchMouse(event, sendDone);
+            try{
+                wm.moveMouseSurface((int)event.getX() - (int)event.getXOffset(),
+                                    (int)event.getY() - (int)event.getYOffset());
+            }catch (RemoteException e){
+                Log.e(TAG,"RemoteException thrown in moveMouseSurface");
+            }
+            dispatchPointer(event, sendDone);
         } else if ((source & InputDevice.SOURCE_CLASS_POINTER) != 0) {
             dispatchPointer(event, sendDone);
         } else if ((source & InputDevice.SOURCE_CLASS_TRACKBALL) != 0) {
@@ -2865,17 +2860,6 @@ public final class ViewRoot extends Handler implements ViewParent,
         }
     }
 
-    public void dispatchMouse(MotionEvent event) {
-        dispatchPointer(event, false);
-    }
-
-    private void dispatchMouse(MotionEvent event, boolean sendDone) {
-    	Message msg = obtainMessage(DISPATCH_MOUSE);
-        msg.obj = event;
-        msg.arg1 = sendDone ? 1 : 0;
-        sendMessageAtTime(msg, event.getEventTime());
-    }
-    
     public void dispatchPointer(MotionEvent event) {
         dispatchPointer(event, false);
     }
