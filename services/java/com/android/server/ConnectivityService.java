@@ -28,7 +28,6 @@ import android.net.MobileDataStateTracker;
 import android.net.NetworkInfo;
 import android.net.NetworkStateTracker;
 import android.net.wifi.WifiStateTracker;
-import android.net.ethernet.EthernetStateTracker;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
@@ -304,7 +303,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                             n.mType);
                     continue;
                 }
-                if ((n.mType != ConnectivityManager.TYPE_ETHERNET) && (mRadioAttributes[n.mRadio] == null)) {
+                if (mRadioAttributes[n.mRadio] == null) {
                     Slog.e(TAG, "Error in networkAttributes - ignoring attempt to use undefined " +
                             "radio " + n.mRadio + " in network type " + n.mType);
                     continue;
@@ -312,7 +311,6 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 mNetAttributes[n.mType] = n;
                 mNetworksDefined++;
             } catch(Exception e) {
-                Slog.e(TAG, "wrong dev exception " + e);
                 // ignore it - leave the entry null
             }
         }
@@ -369,6 +367,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 wifiService.startWifi();
                 mNetTrackers[ConnectivityManager.TYPE_WIFI] = wst;
                 wst.startMonitoring();
+
                 break;
             case ConnectivityManager.TYPE_MOBILE:
                 mNetTrackers[netType] = new MobileDataStateTracker(context, mHandler,
@@ -380,21 +379,8 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 }
                 break;
             default:
-                /*
-                 * The ethernet is not a radio device, but we will still need to init
-                 * it. check if this is the etherent device or not.
-                 */
-                if (netType == ConnectivityManager.TYPE_ETHERNET) {
-                    if (DBG) Slog.v(TAG, "Starting Ethernet Service.");
-                    EthernetStateTracker est = new EthernetStateTracker(context, mHandler);
-                    EthernetService ethService = new EthernetService(context, est);
-                    ServiceManager.addService(Context.ETHERNET_SERVICE, ethService);
-                    mNetTrackers[ConnectivityManager.TYPE_ETHERNET] = est;
-                    est.startMonitoring();
-                } else {
-                    Slog.e(TAG, "Trying to create a DataStateTracker for an unknown radio type " +
-                    mNetAttributes[netType].mRadio);
-                }
+                Slog.e(TAG, "Trying to create a DataStateTracker for an unknown radio type " +
+                        mNetAttributes[netType].mRadio);
                 continue;
             }
         }

@@ -40,14 +40,11 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
-import android.net.ethernet.EthernetManager;
-import android.net.ethernet.EthernetStateTracker;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.storage.StorageManager;
-import android.os.SystemProperties;
 import android.provider.Settings;
 import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
@@ -344,13 +341,6 @@ public class StatusBarPolicy {
     private int mLastWifiSignalLevel = -1;
     private boolean mIsWifiConnected = false;
 
-    //Ethernet
-    private static final int[] sEthImages = new int [] {
-            R.drawable.connect_ethernet_established,
-            R.drawable.connect_ethernet_no,
-            R.drawable.connect_ethernet_creating
-        };
-
     // state of inet connection - 0 not connected, 100 connected
     private int mInetCondition = 0;
 
@@ -388,8 +378,6 @@ public class StatusBarPolicy {
                     action.equals(WifiManager.WIFI_STATE_CHANGED_ACTION) ||
                     action.equals(WifiManager.RSSI_CHANGED_ACTION)) {
                 updateWifi(intent);
-            } else if (action.equals(EthernetManager.ETHERNET_STATE_CHANGED_ACTION)) {
-                updateEth(intent);
             }
             else if (action.equals(LocationManager.GPS_ENABLED_CHANGE_ACTION) ||
                     action.equals(LocationManager.GPS_FIX_CHANGE_ACTION)) {
@@ -450,9 +438,6 @@ public class StatusBarPolicy {
         mService.setIconVisibility("wifi", false);
         // wifi will get updated by the sticky intents
 
-        //ethernet
-        mService.setIcon("ethernet", sEthImages[1], 0);
-        mService.setIconVisibility("ethernet", false);
         // TTY status
         mService.setIcon("tty",  R.drawable.stat_sys_tty_mode, 0);
         mService.setIconVisibility("tty", false);
@@ -512,7 +497,6 @@ public class StatusBarPolicy {
         filter.addAction(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION);
         filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.RSSI_CHANGED_ACTION);
-        filter.addAction(EthernetManager.ETHERNET_STATE_CHANGED_ACTION);
         filter.addAction(LocationManager.GPS_ENABLED_CHANGE_ACTION);
         filter.addAction(LocationManager.GPS_FIX_CHANGE_ACTION);
         filter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
@@ -1103,26 +1087,6 @@ public class StatusBarPolicy {
 
         mService.setIcon("bluetooth", iconId, 0);
         mService.setIconVisibility("bluetooth", mBluetoothEnabled);
-    }
-
-    private final void updateEth(Intent intent) {
-        final int event = intent.getIntExtra(EthernetManager.EXTRA_ETHERNET_STATE, EthernetManager.ETHERNET_STATE_UNKNOWN);
-        int iconId;
-        switch (event) {
-            case EthernetStateTracker.EVENT_HW_CONNECTED:
-            case EthernetStateTracker.EVENT_INTERFACE_CONFIGURATION_SUCCEEDED:
-                iconId = sEthImages[0];
-                break;
-            case EthernetStateTracker.EVENT_HW_DISCONNECTED:
-            case EthernetStateTracker.EVENT_INTERFACE_CONFIGURATION_FAILED:
-                iconId = sEthImages[1];
-                break;
-            default:
-                iconId = sEthImages[2];
-                break;
-        }
-        mService.setIcon("ethernet", iconId, 0);
-        mService.setIconVisibility("ethernet", true);
     }
 
     private final void updateWifi(Intent intent) {
