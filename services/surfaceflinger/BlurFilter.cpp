@@ -31,14 +31,15 @@
 
 namespace android {
 
-#if BYTE_ORDER == LITTLE_ENDIAN
+#if defined(HAVE_LITTLE_ENDIAN)
 inline uint32_t BLUR_RGBA_TO_HOST(uint32_t v) {
     return v;
 }
 inline uint32_t BLUR_HOST_TO_RGBA(uint32_t v) {
     return v;
 }
-#else
+#endif
+#if defined(HAVE_BIG_ENDIAN)
 inline uint32_t BLUR_RGBA_TO_HOST(uint32_t v) {
     return (v<<24) | (v>>24) | ((v<<8)&0xff0000) | ((v>>8)&0xff00);
 }
