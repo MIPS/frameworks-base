@@ -51,6 +51,9 @@ interface IWindowManager
     IWindowSession openSession(in IInputMethodClient client,
             in IInputContext inputContext);
     boolean inputMethodClientHasFocus(IInputMethodClient client);
+
+    // Draws the mouse cursor on the screen
+    boolean moveMouseSurface(int dx, int dy);
     
     // These can only be called when injecting events to your own window,
     // or by holding the INJECT_EVENTS permission.  These methods may block

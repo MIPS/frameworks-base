@@ -1240,84 +1240,12 @@ int32_t TrackballInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scan
 }
 
 
-
-
-
-
-
-
-
-
-
 // Mouse input mapper
-
-#define MOUSE_MOVEMENT_THRESHOLD_X 1600
-#define MOUSE_MOVEMENT_THRESHOLD_Y 900
 
 MouseInputMapper::MouseInputMapper(InputDevice* device, int32_t associatedDisplayId) :
         InputMapper(device), mAssociatedDisplayId(associatedDisplayId)
 {
-        mXPrecision = MOUSE_MOVEMENT_THRESHOLD_X;//MOUSE_MOVEMENT_THRESHOLD;
-        mYPrecision = MOUSE_MOVEMENT_THRESHOLD_Y;//MOUSE_MOVEMENT_THRESHOLD;
-        mXScale = 1.0f / MOUSE_MOVEMENT_THRESHOLD_X;//MOUSE_MOVEMENT_THRESHOLD;
-        mYScale = 1.0f / MOUSE_MOVEMENT_THRESHOLD_Y;//MOUSE_MOVEMENT_THRESHOLD;
-
-        mAccumulator.btnLeft = false;
-        mAccumulator.btnMiddle = false;
-        mAccumulator.btnRight = false;
-
-        initializeLocked();
-}
-
-bool MouseInputMapper::configureSurfaceLocked()
-{
-    // Update orientation and dimensions if needed.
-    int32_t orientation;
-    int32_t width, height;
-    
-    if (mAssociatedDisplayId >= 0)
-    {
-        // Note: getDisplayInfo is non-reentrant so we can continue holding the lock.
-        if (!getPolicy()->getDisplayInfo(mAssociatedDisplayId, &width, &height, &orientation))
-        {
-            return false;
-        }
-    }
-    else
-    {
-        orientation = InputReaderPolicyInterface::ROTATION_0;
-        width = MOUSE_MOVEMENT_THRESHOLD_X;
-        height = MOUSE_MOVEMENT_THRESHOLD_Y;
-    }
-    
-    bool orientationChanged = mLocked.surfaceOrientation != orientation;
-    if (orientationChanged)
-    {
-        mLocked.surfaceOrientation = orientation;
-    }
-    
-    bool sizeChanged = mLocked.surfaceWidth != width || mLocked.surfaceHeight != height;
-    if (sizeChanged)
-    {
-        LOGI("Device reconfigured: id=0x%x, name=%s, display size is now %dx%d",
-                getDeviceId(), getDeviceName().string(), width, height);
-        
-        mLocked.surfaceWidth = width;
-        mLocked.surfaceHeight = height;
-    }
-
-    // Configure position ranges.
-    mLocked.orientedRanges.x.min = 0;
-    mLocked.orientedRanges.x.max = mLocked.surfaceWidth;
-    mLocked.orientedRanges.x.flat = 0;
-    mLocked.orientedRanges.x.fuzz = mXScale;
-
-    mLocked.orientedRanges.y.min = 0;
-    mLocked.orientedRanges.y.max = mLocked.surfaceHeight;
-    mLocked.orientedRanges.y.flat = 0;
-    mLocked.orientedRanges.y.fuzz = mYScale;
-
-    return true;
+    initializeLocked();
 }
 
 MouseInputMapper::~MouseInputMapper()
@@ -1333,24 +1261,6 @@ uint32_t MouseInputMapper::getSources()
 void MouseInputMapper::populateDeviceInfo(InputDeviceInfo* info)
 {
     InputMapper::populateDeviceInfo(info);
-    
-    { // acquire lock
-        AutoMutex _l(mLock);
-        
-        configureSurfaceLocked();
-
-        mAccumulator.xPos = mLocked.surfaceWidth/2;
-        mAccumulator.yPos = mLocked.surfaceHeight/2;
-
-        info->addMotionRange(AINPUT_MOTION_RANGE_X, mLocked.orientedRanges.x);
-        info->addMotionRange(AINPUT_MOTION_RANGE_Y, mLocked.orientedRanges.y);
-    }
-
-    LOGW(INDENT "MouseInputMapper (W,H,X,Y) populateDeviceInfo = (%d,%d,%d,%d)",
-                     mLocked.surfaceWidth,
-                     mLocked.surfaceHeight,
-                     mAccumulator.xPos,
-                     mAccumulator.yPos);
 }
 
 void MouseInputMapper::dump(String8& dump)
@@ -1359,8 +1269,6 @@ void MouseInputMapper::dump(String8& dump)
         AutoMutex _l(mLock);
         dump.append(INDENT2 "Mouse Input Mapper:\n");
         dump.appendFormat(INDENT3 "AssociatedDisplayId: %d\n", mAssociatedDisplayId);
-        dump.appendFormat(INDENT3 "XPrecision: %0.3f\n", mXPrecision);
-        dump.appendFormat(INDENT3 "YPrecision: %0.3f\n", mYPrecision);
         dump.appendFormat(INDENT3 "Down: %s\n", toString(mLocked.down));
         dump.appendFormat(INDENT3 "DownTime: %lld\n", mLocked.downTime);
     } // release lock
@@ -1372,38 +1280,39 @@ void MouseInputMapper::initializeLocked()
 
     mLocked.down = false;
     mLocked.downTime = 0;
-        }
 
-void MouseInputMapper::configure()
-{
-    InputMapper::configure();
-
-    { // acquire lock
-        AutoMutex _l(mLock);
-
-        initializeLocked();
-
-         // Configure surface dimensions and orientation.
-        configureSurfaceLocked();
-    } // release lock
+    int32_t screenWidth;
+    int32_t screenHeight;
+    if (mAssociatedDisplayId < 0 || ! getPolicy()->getDisplayInfo(mAssociatedDisplayId, &screenWidth, &screenHeight, NULL))
+    {
+         mAccumulator.absX = 0;
+         mAccumulator.absY = 0;
+    }
+    else
+    {
+         mAccumulator.absX = screenWidth/2;
+         mAccumulator.absY = screenHeight/2;
+    }
 }
 
 void MouseInputMapper::reset()
 {
-    for (;;) {
+    for (;;)
+    {
         { // acquire lock
-            AutoMutex _l(mLock);
+             AutoMutex _l(mLock);
 
-            if (!mLocked.down) {
-                initializeLocked();
-                break; // done
-            }
+             if (!mLocked.down)
+             {
+                  initializeLocked();
+                  break; // done
+             }
         } // release lock
 
-        // Synthesize mouse button up event on reset.
+        // Synthesize trackball button up event on reset.
         nsecs_t when = systemTime(SYSTEM_TIME_MONOTONIC);
-        mAccumulator.fields = Accumulator::FIELD_BTN_LEFT;
-        mAccumulator.btnLeft = false;
+        mAccumulator.fields = Accumulator::FIELD_BTN_MOUSE;
+        mAccumulator.btnMouse = false;
         sync(when);
     }
 
@@ -1411,70 +1320,46 @@ void MouseInputMapper::reset()
 }
 
 void MouseInputMapper::process(const RawEvent* rawEvent) {
-    switch (rawEvent->type) {
+    switch (rawEvent->type)
+    {
     case EV_KEY:
         switch (rawEvent->scanCode)
         {
-            case BTN_LEFT:
-                mAccumulator.fields |= Accumulator::FIELD_BTN_LEFT;
-                mAccumulator.btnLeft = rawEvent->value != 0;
-		sync(rawEvent->when);
-                // Sync now since BTN_MOUSE is not necessarily followed by SYN_REPORT and
-                // we need to ensure that we report the up/down promptly.
-                break;
-            case BTN_MIDDLE:
-		mAccumulator.fields |= Accumulator::FIELD_BTN_MIDDLE;
-		mAccumulator.btnMiddle = rawEvent->value != 0;
-		sync(rawEvent->when);
-                break;
-	    case BTN_RIGHT:
-		mAccumulator.fields |= Accumulator::FIELD_BTN_RIGHT;
-		mAccumulator.btnRight = rawEvent->value != 0;
-		sync(rawEvent->when);
-		break;
+        case BTN_MOUSE:
+            mAccumulator.fields |= Accumulator::FIELD_BTN_MOUSE;
+            mAccumulator.btnMouse = rawEvent->value != 0;
+            sync(rawEvent->when);
+            break;
+        case BTN_RIGHT:
+            mAccumulator.fields |= Accumulator::FIELD_BTN_RIGHT;
+            mAccumulator.btnRight = rawEvent->value != 0;
+            sync(rawEvent->when);
+            break;
+        case BTN_MIDDLE:
+            mAccumulator.fields |= Accumulator::FIELD_BTN_MIDDLE;
+            mAccumulator.btnMiddle = rawEvent->value != 0;
+            sync(rawEvent->when);
+            break;
         }
-        /*LOGW(INDENT "MouseInputMapper (X,Y,Z) buttons = (%s,%s,%s)",
-                     (mAccumulator.btnLeft)?   "true" : "false",
-                     (mAccumulator.btnMiddle)? "true" : "false",
-                     (mAccumulator.btnRight)?  "true" : "false");*/
         break;
 
     case EV_REL:
-        switch (rawEvent->scanCode) {
+        switch (rawEvent->scanCode)
+        {
         case REL_X:
             mAccumulator.fields |= Accumulator::FIELD_REL_X;
-            mAccumulator.xPos += rawEvent->value;
-            
-            if(mAccumulator.xPos >= mLocked.surfaceWidth)
-            {
-                 mAccumulator.xPos = mLocked.surfaceWidth-1;
-            }
-            else if (mAccumulator.xPos < 0)
-            {
-                 mAccumulator.xPos = 0;
-            }
-            
+            mAccumulator.relX = rawEvent->value;
             break;
         case REL_Y:
             mAccumulator.fields |= Accumulator::FIELD_REL_Y;
-            mAccumulator.yPos += rawEvent->value;
-            
-            if(mAccumulator.yPos >= mLocked.surfaceHeight)
-            {
-                 mAccumulator.yPos = mLocked.surfaceHeight-1;
-            }
-            else if (mAccumulator.yPos < 0)
-            {
-                 mAccumulator.yPos = 0;
-            }
-            
+            mAccumulator.relY = rawEvent->value;
             break;
         }
-        //LOGW(INDENT "MouseInputMapper (X,Y) axis = (%d,%d)",mAccumulator.xPos ,mAccumulator.yPos);
         break;
 
     case EV_SYN:
-        switch (rawEvent->scanCode) {
+        switch (rawEvent->scanCode)
+        {
         case SYN_REPORT:
             sync(rawEvent->when);
             break;
@@ -1483,10 +1368,11 @@ void MouseInputMapper::process(const RawEvent* rawEvent) {
     }
 }
 
-
-void MouseInputMapper::sync(nsecs_t when) {
+void MouseInputMapper::sync(nsecs_t when)
+{
     uint32_t fields = mAccumulator.fields;
-    if (fields == 0) {
+    if (fields == 0)
+    {
         return; // no new state changes, so nothing to do
     }
 
@@ -1496,96 +1382,122 @@ void MouseInputMapper::sync(nsecs_t when) {
     { // acquire lock
         AutoMutex _l(mLock);
 
-        // Update surface size and orientation
-        if (! configureSurfaceLocked()) {
-            return;
+        if (fields & Accumulator::FIELD_BTN_RIGHT)
+        {
+            getDispatcher()->notifyKey(when, getDeviceId(), AINPUT_SOURCE_DPAD, 0,
+                                   mAccumulator.btnRight ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
+                                   AKEY_EVENT_FLAG_FROM_SYSTEM, 0x4 /*Keycode for back key*/,
+                                   0x18 /*Scancode*/, mContext->getGlobalMetaState(), when);
         }
 
-        bool downChanged = fields & Accumulator::FIELD_BTN_LEFT;
-		
-	bool rightclicked = fields & Accumulator::FIELD_BTN_RIGHT;
+        if (fields & Accumulator::FIELD_BTN_MIDDLE)
+        {
+            getDispatcher()->notifyKey(when, getDeviceId(),AINPUT_SOURCE_DPAD, 0,
+                                   mAccumulator.btnMiddle ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
+                                   AKEY_EVENT_FLAG_FROM_SYSTEM, 0x52 /*Keycode for menu key*/,
+                                   0x19 /*Scancode*/, mContext->getGlobalMetaState(), when);
+        }
 
-        if (downChanged) {
-            if (mAccumulator.btnLeft) {
+        bool downChanged = fields & Accumulator::FIELD_BTN_MOUSE;
+        if (downChanged)
+        {
+            if (mAccumulator.btnMouse)
+            {
                 mLocked.down = true;
                 mLocked.downTime = when;
-            } else {
+            }
+            else
+            {
                 mLocked.down = false;
             }
-        }
-		
-        downTime = mLocked.downTime;
-
-        if (downChanged) {
             motionEventAction = mLocked.down ? AMOTION_EVENT_ACTION_DOWN : AMOTION_EVENT_ACTION_UP;
-        } else {
+        }
+        else
+        {
             motionEventAction = AMOTION_EVENT_ACTION_MOVE;
         }
 
-        pointerCoords.x = mAccumulator.xPos;
-        pointerCoords.y = mAccumulator.yPos;
+        downTime = mLocked.downTime;
+
+        float x = fields & Accumulator::FIELD_REL_X ? mAccumulator.relX : 0.0f;
+        float y = fields & Accumulator::FIELD_REL_Y ? mAccumulator.relY : 0.0f;
+
+        int32_t screenWidth;
+        int32_t screenHeight;
+        int32_t orientation;
+
+        if (mAssociatedDisplayId  < 0 || ! getPolicy()->getDisplayInfo(mAssociatedDisplayId, &screenWidth, &screenHeight, &orientation))
+        {
+            return;
+        }
+
+        float temp;
+        switch (orientation)
+        {
+            case InputReaderPolicyInterface::ROTATION_90:
+            {
+                temp = x;
+                x = y;
+                y = - temp;
+                temp = screenHeight;
+                screenHeight = screenWidth;
+                screenWidth = temp;
+                break;
+            }
+            case InputReaderPolicyInterface::ROTATION_180:
+            {
+                x = - x;
+                y = - y;
+                break;
+            }
+            case InputReaderPolicyInterface::ROTATION_270:
+            {
+                temp = x;
+                x = - y;
+                y = temp;
+                temp = screenHeight;
+                screenHeight = screenWidth;
+                screenWidth = temp;
+                break;
+            }
+        }
+
+        mAccumulator.absX =
+            (mAccumulator.absX + x) > screenWidth ? screenWidth -1 :
+                 ((mAccumulator.absX + x) < 0 ? 0 : mAccumulator.absX + x);
+        mAccumulator.absY = (mAccumulator.absY + y) > screenHeight ? screenHeight -1 :
+                 ((mAccumulator.absY + y) < 0 ? 0 : mAccumulator.absY + y);
+        pointerCoords.x = mAccumulator.absX;
+        pointerCoords.y = mAccumulator.absY;
         pointerCoords.pressure = mLocked.down ? 1.0f : 0.0f;
-        pointerCoords.size = 1;
+        pointerCoords.size = 0;
         pointerCoords.touchMajor = 0;
         pointerCoords.touchMinor = 0;
         pointerCoords.toolMajor = 0;
         pointerCoords.toolMinor = 0;
         pointerCoords.orientation = 0;
-		
-        if (mAssociatedDisplayId >= 0 && (pointerCoords.x != 0.0f || pointerCoords.y != 0.0f))
-        {
-            // Rotate motion based on display orientation if needed.
-            // Note: getDisplayInfo is non-reentrant so we can continue holding the lock.
-            int32_t orientation;
-            if (!getPolicy()->getDisplayInfo(mAssociatedDisplayId, NULL, NULL, & orientation))
-            {
-                return;
-            }
 
-            float temp;
-            switch (orientation)
-            {
-            case InputReaderPolicyInterface::ROTATION_90:
-                temp = pointerCoords.x;
-                pointerCoords.x = pointerCoords.y;
-                pointerCoords.y = - temp;
-                break;
-
-            case InputReaderPolicyInterface::ROTATION_180:
-                pointerCoords.x = - pointerCoords.x;
-                pointerCoords.y = - pointerCoords.y;
-                break;
-
-            case InputReaderPolicyInterface::ROTATION_270:
-                temp = pointerCoords.x;
-                pointerCoords.x = - pointerCoords.y;
-                pointerCoords.y = temp;
-                break;
-            }
-        }
     } // release lock
 
     int32_t metaState = mContext->getGlobalMetaState();
-    int32_t pointerId = 0;	
+    int32_t pointerId = 0;
     getDispatcher()->notifyMotion(when, getDeviceId(), AINPUT_SOURCE_MOUSE, 0,
             motionEventAction, 0, metaState, AMOTION_EVENT_EDGE_FLAG_NONE,
-            1, &pointerId, &pointerCoords, mXPrecision, mYPrecision, downTime);
-
+            1, &pointerId, &pointerCoords, 1, 1, downTime);
     mAccumulator.clear();
 }
 
-int32_t MouseInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode) {
-    if (scanCode >= BTN_MOUSE && scanCode < BTN_JOYSTICK) {
+int32_t MouseInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode)
+{
+    if (scanCode >= BTN_MOUSE && scanCode < BTN_JOYSTICK)
+    {
         return getEventHub()->getScanCodeState(getDeviceId(), scanCode);
-    } else {
+    }
+    else
+    {
         return AKEY_STATE_UNKNOWN;
     }
 }
-
-
-
-
-
 
 
 // --- TouchInputMapper ---
