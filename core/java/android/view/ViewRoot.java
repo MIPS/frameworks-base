@@ -2850,7 +2850,7 @@ public final class ViewRoot extends Handler implements ViewParent,
 
     private void dispatchMotion(MotionEvent event, boolean sendDone) {
         int source = event.getSource();
-        if ((source & InputDevice.SOURCE_MOUSE) != 0) {
+        if ((source & (InputDevice.SOURCE_MOUSE & ~InputDevice.SOURCE_CLASS_POINTER)) != 0) {
             dispatchMouse(event, sendDone);
         } else if ((source & InputDevice.SOURCE_CLASS_POINTER) != 0) {
             dispatchPointer(event, sendDone);

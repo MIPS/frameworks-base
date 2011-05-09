@@ -734,7 +734,7 @@ bool InputDispatcher::dispatchMotionLocked(
     }
 
     bool isPointerEvent = entry->source & AINPUT_SOURCE_CLASS_POINTER;
-    bool isMouseEvent = entry->source & AINPUT_SOURCE_MOUSE;
+    bool isMouseEvent = entry->source & (AINPUT_SOURCE_MOUSE & ~AINPUT_SOURCE_CLASS_POINTER);
 
     // Identify targets.
     if (! mCurrentInputTargetsValid) {
