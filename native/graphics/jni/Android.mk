@@ -13,6 +13,12 @@ ifeq ($(ARCH_ARM_HAVE_NEON),true)
 	LOCAL_CFLAGS += -D__ARM_HAVE_NEON
 endif
 
+ifeq ($TARGET_ARCH),mips)
+ifneq ($(ARCH_MIPS_HAVE_FPU),true)
+	LOCAL_CFLAGS += -DSK_SOFTWARE_FLOAT
+endif
+endif
+
 # our source files
 #
 LOCAL_SRC_FILES:= \
