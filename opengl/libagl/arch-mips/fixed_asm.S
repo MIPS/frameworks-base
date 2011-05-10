@@ -19,9 +19,7 @@
     .text
     .align
     
-	.global gglFloatToFixed
-	.global gglFloatToFixedFast
-
+#if 0 /* Not used */
 
 /*
  * Converts a float to a s15.16 fixed-point number.
@@ -30,7 +28,13 @@
  * however, it's very fast :-)
  */
 
+	.global gglFloatToFixedFast
+	.ent	gglFloatToFixedFast
+	.type	gglFloatToFixedFast, @function
 gglFloatToFixedFast:
+#if !defined(__mips_soft_float)
+	mfc1	$a0,$f12
+#endif
 	srl	$t0,$a0,31		/* t0 <- sign bit */
 	srl	$t1,$a0,23
 	andi	$t1,$t1,0xff		/* get the e */
@@ -47,13 +51,21 @@ gglFloatToFixedFast:
 	movz	$v0,$zero,$t1
 	movz	$v0,$zero,$t3		/* t3=0 then res=0 */
 	jr	$ra
+	.end	gglFloatToFixedFast
+#endif
 
 /*
  * this version rounds-to-nearest and saturates numbers
  * outside the range (but not NaNs).
  */
 
+	.global	gglFloatToFixed
+	.ent	gglFloatToFixed
+	.type	gglFloatToFixed, @function
 gglFloatToFixed:
+#if !defined(__mips_soft_float)
+	mfc1	$a0,$f12
+#endif
 	srl	$t0,$a0,31		/* t0 <- sign bit */
 	srl	$t1,$a0,23
 	andi	$t1,$t1,0xff		/* get the e */
@@ -81,3 +93,4 @@ gglFloatToFixed:
 	li	$t1,0x7fffffff
 	movz	$v0,$t1,$t0		/* positive, maximum value */
 	jr	$ra
+	.end	gglFloatToFixed
