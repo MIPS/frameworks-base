@@ -29,6 +29,9 @@ LOCAL_SRC_FILES := \
  	src/pvmp3_stereo_proc.cpp \
  	src/pvmp3_reorder.cpp \
 
+LOCAL_CFLAGS := \
+        -DOSCL_UNUSED_ARG=
+
 ifeq ($(TARGET_ARCH),arm)
 LOCAL_SRC_FILES += \
 	src/asm/pvmp3_polyphase_filter_window_gcc.s \
@@ -41,15 +44,24 @@ LOCAL_SRC_FILES += \
  	src/pvmp3_mdct_18.cpp \
  	src/pvmp3_dct_9.cpp \
  	src/pvmp3_dct_16.cpp
-endif
+
+ifeq ($(TARGET_ARCH),mips)
+LOCAL_CFLAGS += -DMIPS_ASM -DMIPS_ARCH
+
+ifeq ($(ARCH_MIPS_HAS_DSP),true)
+LOCAL_SRC_FILES += \
+    src/mips_dsp/pvmp3_mdct_18.S \
+    src/mips_dsp/pvmp3_polyphase_filter_window.S
+LOCAL_CFLAGS += -DMIPS_DSP
+endif #mips dsp
+
+endif #mips
+endif #arm
 
 LOCAL_C_INCLUDES := \
         frameworks/base/media/libstagefright/include \
         $(LOCAL_PATH)/src \
         $(LOCAL_PATH)/include
-
-LOCAL_CFLAGS := \
-        -DOSCL_UNUSED_ARG=
 
 LOCAL_MODULE := libstagefright_mp3dec
 
