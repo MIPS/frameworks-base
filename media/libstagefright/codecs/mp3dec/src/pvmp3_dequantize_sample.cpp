@@ -101,6 +101,9 @@ Input
 ; MACROS
 ; Define module specific macros here
 ----------------------------------------------------------------------------*/
+#ifndef MIPS_DSP
+#define fxp_mul32_Q14(x,y) fxp_mul32_Q30((x)<<16,y)
+#endif
 
 
 /*----------------------------------------------------------------------------
@@ -293,7 +296,7 @@ void pvmp3_dequantize_sample(int32 is[SUBBANDS_NUMBER*FILTERBANK_BANDS],
 
             /* 0 < abs(is[ss]) < 8192 */
 
-            int32 tmp = fxp_mul32_Q30((is[ss] << 16), power_1_third(pv_abs(is[ ss])));
+            int32 tmp = fxp_mul32_Q14(is[ss], power_1_third(pv_abs(is[ ss])));
 
             tmp = fxp_mul32_Q30(tmp, two_raise_one_fourth);
 
@@ -352,13 +355,13 @@ void pvmp3_dequantize_sample(int32 is[SUBBANDS_NUMBER*FILTERBANK_BANDS],
                             int32 tmp =  is[ss];
                             if (tmp)
                             {
-                                tmp = fxp_mul32_Q30((tmp << 16), power_1_third(pv_abs(tmp)));
+                                tmp = fxp_mul32_Q14(tmp, power_1_third(pv_abs(tmp)));
                                 is[ss] = fxp_mul32_Q30(tmp, two_raise_one_fourth) >> global_gain;
                             }
                             tmp =  is[ss+1];
                             if (tmp)
                             {
-                                tmp = fxp_mul32_Q30((tmp << 16), power_1_third(pv_abs(tmp)));
+                                tmp = fxp_mul32_Q14(tmp, power_1_third(pv_abs(tmp)));
                                 is[ss+1] = fxp_mul32_Q30(tmp, two_raise_one_fourth) >> global_gain;
                             }
                         }
@@ -377,14 +380,14 @@ void pvmp3_dequantize_sample(int32 is[SUBBANDS_NUMBER*FILTERBANK_BANDS],
                         int32 tmp =  is[ss];
                         if (tmp)
                         {
-                            tmp = fxp_mul32_Q30((tmp << 16), power_1_third(pv_abs(tmp)));
+                            tmp = fxp_mul32_Q14(tmp, power_1_third(pv_abs(tmp)));
                             is[ss] = fxp_mul32_Q30(tmp, two_raise_one_fourth) << global_gain;
                         }
 
                         tmp =  is[ss+1];
                         if (tmp)
                         {
-                            tmp = fxp_mul32_Q30((tmp << 16), power_1_third(pv_abs(tmp)));
+                            tmp = fxp_mul32_Q14(tmp, power_1_third(pv_abs(tmp)));
                             is[ss+1] = fxp_mul32_Q30(tmp, two_raise_one_fourth) << global_gain;
                         }
                     }
@@ -402,13 +405,13 @@ void pvmp3_dequantize_sample(int32 is[SUBBANDS_NUMBER*FILTERBANK_BANDS],
                             int32 tmp =  is[ss];
                             if (tmp)
                             {
-                                tmp = fxp_mul32_Q30((tmp << 16), power_1_third(pv_abs(tmp)));
+                                tmp = fxp_mul32_Q14(tmp, power_1_third(pv_abs(tmp)));
                                 is[ss] = fxp_mul32_Q30(tmp, two_raise_one_fourth) >> global_gain;
                             }
                             tmp =  is[ss+1];
                             if (tmp)
                             {
-                                tmp = fxp_mul32_Q30((tmp << 16), power_1_third(pv_abs(tmp)));
+                                tmp = fxp_mul32_Q14(tmp, power_1_third(pv_abs(tmp)));
                                 is[ss+1] = fxp_mul32_Q30(tmp, two_raise_one_fourth) >> global_gain;
                             }
                         }
@@ -429,7 +432,7 @@ void pvmp3_dequantize_sample(int32 is[SUBBANDS_NUMBER*FILTERBANK_BANDS],
 
                         if (tmp)
                         {
-                            tmp = fxp_mul32_Q30((tmp << 16), power_1_third(pv_abs(tmp)));
+                            tmp = fxp_mul32_Q14(tmp, power_1_third(pv_abs(tmp)));
                             is[ss] = fxp_mul32_Q30(tmp, two_raise_one_fourth) << global_gain;
                         }
                     }
