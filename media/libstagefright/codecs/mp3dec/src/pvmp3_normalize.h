@@ -88,6 +88,23 @@ __inline int32 pvmp3_normalize(int32 x)
 
 }
 
+#elif defined(MIPS_ASM)
+
+__inline int32 pvmp3_normalize(int32 x)
+{
+    register int32 norm_res;
+    register int32 ra = x;
+
+    asm volatile(
+        "clz      %[norm_res], %[ra]            \n\t"
+        "addiu    %[norm_res], %[norm_res], -1  \n\t"
+    : [norm_res]"=&r"(norm_res)
+    : [ra]"r"(ra));
+
+    return (norm_res);
+
+}
+
 #else
 
 #ifdef __cplusplus
