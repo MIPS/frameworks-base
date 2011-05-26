@@ -63,7 +63,7 @@ Returns
 ------------------------------------------------------------------------------
 */
 
-#if ( !defined(PV_ARM_GCC_V5) && !defined(PV_ARM_GCC_V4) && !defined(PV_ARM_V5) && !defined(PV_ARM_V4) )
+#if ( !defined(PV_ARM_GCC_V5) && !defined(PV_ARM_GCC_V4) && !defined(PV_ARM_V5) && !defined(PV_ARM_V4) && !defined(MIPS_DSP))
 /*----------------------------------------------------------------------------
 ; INCLUDES
 ----------------------------------------------------------------------------*/

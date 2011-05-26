@@ -64,6 +64,10 @@ extern "C"
 
 #include "pv_mp3dec_fxd_op_msc_evc.h"
 
+#elif defined(MIPS_DSP)
+
+#include "pv_mp3dec_fxd_op_mips.h"
+
 #else
 
 #ifndef C_EQUIVALENT

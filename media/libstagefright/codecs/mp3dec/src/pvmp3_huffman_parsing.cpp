@@ -180,6 +180,7 @@ int32 pvmp3_huffman_parsing(int32 is[SUBBANDS_NUMBER*FILTERBANK_BANDS],
         grInfo->big_values = (FILTERBANK_BANDS * SUBBANDS_NUMBER >> 1);
     }
 
+#ifndef MIPS_ARCH
     if ((grInfo->big_values << 1) > (uint32)region2Start)
     {
         h = &(pVars->ht[grInfo->table_select[0]]);
@@ -274,7 +275,116 @@ int32 pvmp3_huffman_parsing(int32 is[SUBBANDS_NUMBER*FILTERBANK_BANDS],
             (*pt_huff)(h, &is[i], pMainData);
         }
     }
+#else
+   /* This is a little bit faster on MIPS from original code */
+    if ((grInfo->big_values << 1) > (uint32)region2Start)
+    {
+        h = &(pVars->ht[grInfo->table_select[0]]);
+        if (h->linbits)
 
+            for (i = 0; i < region1Start; i += 2)
+            {
+                pvmp3_huffman_pair_decoding_linbits(h, &is[i], pMainData);
+            }
+
+        else
+        {
+            for (i = 0; i < region1Start; i += 2)
+            {
+                pvmp3_huffman_pair_decoding(h, &is[i], pMainData);
+            }
+        }
+
+        h = &(pVars->ht[grInfo->table_select[1]]);
+        if (h->linbits)
+        {
+            for (; i < region2Start; i += 2)
+            {
+               pvmp3_huffman_pair_decoding_linbits(h, &is[i], pMainData);
+            }
+        }
+        else
+        {
+            for (; i < region2Start; i += 2)
+            {
+               pvmp3_huffman_pair_decoding(h, &is[i], pMainData);
+            }
+        }
+
+        h = &(pVars->ht[grInfo->table_select[2]]);
+        if (h->linbits)
+        {
+            for (; (uint32)i < (grInfo->big_values << 1); i += 2)
+            {
+               pvmp3_huffman_pair_decoding_linbits(h, &is[i], pMainData);
+            }
+        }
+        else
+        {
+            for (; (uint32)i < (grInfo->big_values << 1); i += 2)
+            {
+               pvmp3_huffman_pair_decoding(h, &is[i], pMainData);
+            }
+        }
+    }
+    else if ((grInfo->big_values << 1) > (uint32)region1Start)
+    {
+        h = &(pVars->ht[grInfo->table_select[0]]);
+        if (h->linbits)
+        {
+            for (i = 0; i < region1Start; i += 2)
+            {
+                pvmp3_huffman_pair_decoding_linbits(h, &is[i], pMainData);
+            }
+
+        }
+        else
+        {
+            for (i = 0; i < region1Start; i += 2)
+            {
+                pvmp3_huffman_pair_decoding(h, &is[i], pMainData);
+            }
+        }
+
+
+        h = &(pVars->ht[grInfo->table_select[1]]);
+        if (h->linbits)
+        {
+            for (; (uint32)i < (grInfo->big_values << 1); i += 2)
+            {
+                pvmp3_huffman_pair_decoding_linbits(h, &is[i], pMainData);
+            }
+        }
+        else
+
+
+        {
+            for (; (uint32)i < (grInfo->big_values << 1); i += 2)
+            {
+                pvmp3_huffman_pair_decoding(h, &is[i], pMainData);
+            }
+        }
+
+    }
+    else
+    {
+        h = &(pVars->ht[grInfo->table_select[0]]);
+        if (h->linbits)
+        {
+            for (i = 0; (uint32)i < (grInfo->big_values << 1); i += 2)
+            {
+                pvmp3_huffman_pair_decoding_linbits(h, &is[i], pMainData);
+            }
+        }
+        else
+        {
+            for (i = 0; (uint32)i < (grInfo->big_values << 1); i += 2)
+            {
+                pvmp3_huffman_pair_decoding(h, &is[i], pMainData);
+            }
+        }
+    }
+#endif MIPS_ARCH
 
 
     /* Read count1 area. */
