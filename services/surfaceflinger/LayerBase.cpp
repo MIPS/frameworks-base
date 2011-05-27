@@ -515,12 +515,6 @@ void LayerBase::dump(String8& result, char* buffer, size_t SIZE) const
     result.append(buffer);
 }
 
-void LayerBase::shortDump(String8& result, char* scratch, size_t size) const
-{
-    LayerBase::dump(result, scratch, size);
-}
-
-
 // ---------------------------------------------------------------------------
 
 int32_t LayerBaseClient::sIdentity = 1;
@@ -570,12 +564,6 @@ void LayerBaseClient::dump(String8& result, char* buffer, size_t SIZE) const
             client.get(), getIdentity());
 
     result.append(buffer);
-}
-
-
-void LayerBaseClient::shortDump(String8& result, char* scratch, size_t size) const
-{
-    LayerBaseClient::dump(result, scratch, size);
 }
 
 // ---------------------------------------------------------------------------
