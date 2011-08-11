@@ -40,7 +40,7 @@
 #define MAX_NUMBER_OF_GL_EXTENSIONS 32
 
 
-#if defined(HAVE_ANDROID_OS) && !USE_SLOW_BINDING && __OPTIMIZE__
+#if defined(HAVE_ANDROID_OS) && !USE_SLOW_BINDING && __OPTIMIZE__ && !defined(__mips16)
 #define USE_FAST_TLS_KEY            1
 #else
 #define USE_FAST_TLS_KEY            0

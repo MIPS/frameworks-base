@@ -27,7 +27,7 @@ LOCAL_SRC_FILES:= \
 	CursorWindow.cpp \
 	Time.cpp \
 	com_google_android_gles_jni_EGLImpl.cpp \
-	com_google_android_gles_jni_GLImpl.cpp.arm \
+	com_google_android_gles_jni_GLImpl.cpp.arch \
 	android_opengl_GLES10.cpp \
 	android_opengl_GLES10Ext.cpp \
 	android_opengl_GLES11.cpp \
@@ -111,8 +111,8 @@ LOCAL_SRC_FILES:= \
 	android_hardware_SensorManager.cpp \
 	android_debug_JNITest.cpp \
 	android_util_FileObserver.cpp \
-	android/opengl/poly_clip.cpp.arm \
-	android/opengl/util.cpp.arm \
+	android/opengl/poly_clip.cpp.arch \
+	android/opengl/util.cpp.arch \
 	android_bluetooth_HeadsetBase.cpp \
 	android_bluetooth_common.cpp \
 	android_bluetooth_BluetoothAudioGateway.cpp \

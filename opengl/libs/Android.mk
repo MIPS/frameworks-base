@@ -7,9 +7,15 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= 	\
-	EGL/egl.cpp 	\
 	EGL/hooks.cpp 	\
 	EGL/Loader.cpp 	\
+
+ifeq ($(ARCH_MIPS_HAS_MIPS16),true)
+	# The TLS hardware register is not supported with MIPS16
+	LOCAL_SRC_FILES += EGL/egl.cpp.arch
+else
+	LOCAL_SRC_FILES += EGL/egl.cpp
+endif
 #
 
 LOCAL_SHARED_LIBRARIES += libcutils libutils
@@ -68,7 +74,7 @@ endif
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= 		\
-	GLES_CM/gl.cpp.arm 	\
+	GLES_CM/gl.cpp.arch 	\
 #
 
 LOCAL_SHARED_LIBRARIES += libcutils libEGL
@@ -104,7 +110,7 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= 		\
-	GLES2/gl2.cpp.arm 	\
+	GLES2/gl2.cpp.arch 	\
 #
 
 LOCAL_SHARED_LIBRARIES += libcutils libEGL
