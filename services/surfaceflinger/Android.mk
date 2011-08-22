@@ -2,10 +2,10 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-    clz.cpp.arm \
+    clz.cpp.arch \
     DisplayHardware/DisplayHardware.cpp \
     DisplayHardware/DisplayHardwareBase.cpp \
-    BlurFilter.cpp.arm \
+    BlurFilter.cpp.arch \
     GLExtensions.cpp \
     Layer.cpp \
     LayerBase.cpp \

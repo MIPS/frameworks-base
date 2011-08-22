@@ -9,7 +9,6 @@ LOCAL_SRC_FILES := \
  	src/pvmp3_decode_header.cpp \
  	src/pvmp3_decode_huff_cw.cpp \
  	src/pvmp3_getbits.cpp \
- 	src/pvmp3_dequantize_sample.cpp \
  	src/pvmp3_framedecoder.cpp \
  	src/pvmp3_get_main_data_size.cpp \
  	src/pvmp3_get_side_info.cpp \
@@ -37,7 +36,8 @@ LOCAL_SRC_FILES += \
 	src/asm/pvmp3_polyphase_filter_window_gcc.s \
  	src/asm/pvmp3_mdct_18_gcc.s \
  	src/asm/pvmp3_dct_9_gcc.s \
-	src/asm/pvmp3_dct_16_gcc.s
+	src/asm/pvmp3_dct_16_gcc.s \
+    src/pvmp3_dequantize_sample.cpp.arch
 else
 LOCAL_SRC_FILES += \
  	src/pvmp3_polyphase_filter_window.cpp \
@@ -48,6 +48,9 @@ LOCAL_SRC_FILES += \
 ifeq ($(TARGET_ARCH),mips)
 LOCAL_CFLAGS += -DMIPS_ASM -DMIPS_ARCH
 
+LOCAL_SRC_FILES += \
+    src/pvmp3_dequantize_sample.cpp.arch \
+
 ifeq ($(ARCH_MIPS_HAS_DSP),true)
 LOCAL_SRC_FILES += \
     src/mips_dsp/pvmp3_mdct_18.S \
@@ -55,6 +58,9 @@ LOCAL_SRC_FILES += \
 LOCAL_CFLAGS += -DMIPS_DSP
 endif #mips dsp
 
+else
+LOCAL_SRC_FILES += \
+    src/pvmp3_dequantize_sample.cpp
 endif #mips
 endif #arm
 

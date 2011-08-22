@@ -74,12 +74,12 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES:=               \
-    AudioFlinger.cpp            \
-    AudioMixer.cpp.arm          \
-    AudioResampler.cpp.arm      \
-    AudioResamplerSinc.cpp.arm  \
-    AudioResamplerCubic.cpp.arm \
+LOCAL_SRC_FILES:=                \
+    AudioFlinger.cpp             \
+    AudioMixer.cpp.arch          \
+    AudioResampler.cpp.arch      \
+    AudioResamplerSinc.cpp.arch  \
+    AudioResamplerCubic.cpp.arch \
     AudioPolicyService.cpp
 
 LOCAL_SHARED_LIBRARIES := \

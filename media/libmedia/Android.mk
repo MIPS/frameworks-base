@@ -32,7 +32,7 @@ LOCAL_SRC_FILES:= \
     IEffectClient.cpp \
     AudioEffect.cpp \
     Visualizer.cpp \
-    fixedfft.cpp.arm
+    fixedfft.cpp.arch
 
 LOCAL_SHARED_LIBRARIES := \
 	libui libcutils libutils libbinder libsonivox libicuuc libexpat libsurfaceflinger_client libcamera_client

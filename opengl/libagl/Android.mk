@@ -7,20 +7,17 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-	egl.cpp                     \
-	state.cpp		            \
-	texture.cpp		            \
-    Tokenizer.cpp               \
-    TokenManager.cpp            \
-    TextureObjectManager.cpp    \
-    BufferObjectManager.cpp     \
-	array.cpp.arm		        \
-	fp.cpp.arm		            \
-	light.cpp.arm		        \
-	matrix.cpp.arm		        \
-	mipmap.cpp.arm		        \
-	primitives.cpp.arm	        \
-	vertex.cpp.arm
+	Tokenizer.cpp               \
+	TokenManager.cpp            \
+	TextureObjectManager.cpp    \
+	BufferObjectManager.cpp     \
+	array.cpp.arch		    \
+	fp.cpp.arch		    \
+	light.cpp.arch		    \
+	matrix.cpp.arch		    \
+	mipmap.cpp.arch		    \
+	primitives.cpp.arch	    \
+	vertex.cpp.arch
 
 LOCAL_CFLAGS += -DLOG_TAG=\"libagl\"
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
@@ -36,6 +33,13 @@ endif
 
 ifeq ($(ARCH_ARM_HAVE_TLS_REGISTER),true)
     LOCAL_CFLAGS += -DHAVE_ARM_TLS_REGISTER
+endif
+
+ifeq ($(ARCH_MIPS_HAS_MIPS16),true)
+	# The TLS hardware register is not supported with MIPS16
+	LOCAL_SRC_FILES += egl.cpp.arch state.cpp.arch texture.cpp.arch
+else
+	LOCAL_SRC_FILES += egl.cpp state.cpp texture.cpp
 endif
 
 ifeq ($(TARGET_ARCH),mips)
