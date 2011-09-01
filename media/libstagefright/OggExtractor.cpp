@@ -351,7 +351,8 @@ status_t MyVorbisExtractor::readNextPacket(MediaBuffer **out) {
                 // XXX Not only is this not technically the correct time for
                 // this packet, we also stamp every packet in this page
                 // with the same time. This needs fixing later.
-                timeUs = mCurrentPage.mGranulePosition * 1000000ll / mVi.rate;
+	        if (mVi.rate)
+		    timeUs = mCurrentPage.mGranulePosition * 1000000ll / mVi.rate;
                 tmp->set_range(0, 0);
             }
             buffer = tmp;
