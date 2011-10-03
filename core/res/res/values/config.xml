@@ -38,6 +38,7 @@
        <item><xliff:g id="id">mute</xliff:g></item>
        <item><xliff:g id="id">volume</xliff:g></item>
        <item><xliff:g id="id">wifi</xliff:g></item>
+       <item><xliff:g id="id">ethernet</xliff:g></item>
        <item><xliff:g id="id">cdma_eri</xliff:g></item>
        <item><xliff:g id="id">data_connection</xliff:g></item>
        <item><xliff:g id="id">phone_evdo_signal</xliff:g></item>
@@ -95,6 +96,7 @@
         <item>"mobile_mms,2,0,2"</item>
         <item>"mobile_supl,3,0,2"</item>
         <item>"mobile_hipri,5,0,3"</item>
+        <item>"ethernet,7,7,1"</item>
     </string-array>
 
     <!-- This string array should be overridden by the device to present a list of radio

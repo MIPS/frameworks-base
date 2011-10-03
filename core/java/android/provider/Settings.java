@@ -2591,6 +2591,18 @@ public final class Settings {
         public static final String WIFI_ON = "wifi_on";
 
         /**
+         * Ethernet related configurations
+         */
+        public static final String ETHERNET_ON      = "ethernet_on";
+        public static final String ETHERNET_MODE    = "ethernet_mode";
+        public static final String ETHERNET_IP      = "ethernet_ip";
+        public static final String ETHERNET_MASK    = "ethernet_netmask";
+        public static final String ETHERNET_DNS     = "ethernet_dns";
+        public static final String ETHERNET_ROUTE   = "ethernet_iproute";
+        public static final String ETHERNET_CONF    = "ethernet_conf";
+        public static final String ETHERNET_IFNAME  = "ethernet_ifname";
+
+        /**
          * Used to save the Wifi_ON state prior to tethering.
          * This state will be checked to restore Wifi after
          * the user turns off tethering.
