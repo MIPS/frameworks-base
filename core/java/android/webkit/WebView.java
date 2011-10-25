@@ -2075,6 +2075,7 @@ public class WebView extends AbsoluteLayout
         WebViewCore.GetUrlData arg = new WebViewCore.GetUrlData();
         arg.mUrl = url;
         arg.mExtraHeaders = extraHeaders;
+        mCallbackProxy.onProgressChanged(0);
         mWebViewCore.sendMessage(EventHub.LOAD_URL, arg);
         clearHelpers();
     }
@@ -2110,6 +2111,7 @@ public class WebView extends AbsoluteLayout
             WebViewCore.PostUrlData arg = new WebViewCore.PostUrlData();
             arg.mUrl = url;
             arg.mPostData = postData;
+            mCallbackProxy.onProgressChanged(0);
             mWebViewCore.sendMessage(EventHub.POST_URL, arg);
             clearHelpers();
         } else {
@@ -2196,6 +2198,7 @@ public class WebView extends AbsoluteLayout
         arg.mMimeType = mimeType;
         arg.mEncoding = encoding;
         arg.mHistoryUrl = historyUrl;
+        mCallbackProxy.onProgressChanged(0);
         mWebViewCore.sendMessage(EventHub.LOAD_DATA, arg);
         clearHelpers();
     }
@@ -2264,6 +2267,7 @@ public class WebView extends AbsoluteLayout
         checkThread();
         clearHelpers();
         switchOutDrawHistory();
+        mCallbackProxy.onProgressChanged(0);
         mWebViewCore.sendMessage(EventHub.RELOAD);
     }
 
