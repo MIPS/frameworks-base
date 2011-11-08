@@ -747,7 +747,8 @@ static void socket_write (JNIEnv *env, jobject object,
         return;
     }
 
-    err = socket_write_all(env, object, fd, &b, 1);
+    unsigned char buf = b;
+    err = socket_write_all(env, object, fd, &buf, 1);
 
     // A return of -1 above means an exception is pending
 }
