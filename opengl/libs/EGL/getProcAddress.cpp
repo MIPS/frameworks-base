@@ -37,32 +37,66 @@ namespace android {
 
 #if USE_FAST_TLS_KEY
 
-    #ifdef HAVE_ARM_TLS_REGISTER
-        #define GET_TLS(reg) \
-            "mrc p15, 0, " #reg ", c13, c0, 3 \n"
+    #if defined(__arm__)
+        #ifdef HAVE_ARM_TLS_REGISTER
+            #define GET_TLS(reg) \
+                "mrc p15, 0, " #reg ", c13, c0, 3 \n"
     #else
-        #define GET_TLS(reg) \
-            "mov   " #reg ", #0xFFFF0FFF      \n"  \
-            "ldr   " #reg ", [" #reg ", #-15] \n"
-    #endif
+            #define GET_TLS(reg) \
+                "mov   " #reg ", #0xFFFF0FFF      \n"  \
+                "ldr   " #reg ", [" #reg ", #-15] \n"
+        #endif
 
-    #define API_ENTRY(_api) __attribute__((naked)) _api
+        #define API_ENTRY(_api) __attribute__((naked)) _api
 
-    #define CALL_GL_EXTENSION_API(_api)                         \
-         asm volatile(                                          \
-            GET_TLS(r12)                                        \
-            "ldr   r12, [r12, %[tls]] \n"                       \
-            "cmp   r12, #0            \n"                       \
-            "ldrne r12, [r12, %[api]] \n"                       \
-            "cmpne r12, #0            \n"                       \
-            "bxne  r12                \n"                       \
-            "bx    lr                 \n"                       \
-            :                                                   \
-            : [tls] "J"(TLS_SLOT_OPENGL_API*4),                 \
-              [api] "J"(__builtin_offsetof(gl_hooks_t,          \
-                                      ext.extensions[_api]))    \
-            :                                                   \
+        #define CALL_GL_EXTENSION_API(_api)                         \
+             asm volatile(                                          \
+                GET_TLS(r12)                                        \
+                "ldr   r12, [r12, %[tls]] \n"                       \
+                "cmp   r12, #0            \n"                       \
+                "ldrne r12, [r12, %[api]] \n"                       \
+                "cmpne r12, #0            \n"                       \
+                "bxne  r12                \n"                       \
+                "bx    lr                 \n"                       \
+                :                                                   \
+                : [tls] "J"(TLS_SLOT_OPENGL_API*4),                 \
+                  [api] "J"(__builtin_offsetof(gl_hooks_t,          \
+                                          ext.extensions[_api]))    \
+                :                                                   \
+                );
+    #elif defined(__mips__)
+        #define API_ENTRY(_api) __attribute__((noinline)) _api
+
+        #define CALL_GL_EXTENSION_API(_api, ...)                    \
+            register unsigned int t0 asm("t0");                     \
+            register unsigned int fn asm("t1");                     \
+            register unsigned int tls asm("v1");                    \
+            asm volatile(                                           \
+                ".set  push\n\t"                                    \
+                ".set  noreorder\n\t"                               \
+                ".set  mips32r2\n\t"                                \
+                "rdhwr %[tls], $29\n\t"                             \
+                "lw    %[t0], %[OPENGL_API](%[tls])\n\t"            \
+                "beqz  %[t0], 1f\n\t"                               \
+                " move %[fn], $ra\n\t"                              \
+                "lw    %[fn], %[API](%[t0])\n\t"                    \
+                "movz  %[fn], $ra, %[fn]\n\t"                       \
+                "1:\n\t"                                            \
+                "j     %[fn]\n\t"                                   \
+                " nop\n\t"                                          \
+                ".set  pop\n\t"                                     \
+                : [fn] "=c"(fn),                                    \
+                  [tls] "=&r"(tls),                                 \
+                  [t0] "=&r"(t0)                                    \
+                : [OPENGL_API] "I"(TLS_SLOT_OPENGL_API*4),          \
+                  [API] "I"(__builtin_offsetof(gl_hooks_t,          \
+                                          ext.extensions[_api]))    \
+                :                                                   \
             );
+
+    #else
+        #error Unsupported architecture
+    #endif
 
     #define GL_EXTENSION_NAME(_n)   __glExtFwd##_n
 
@@ -70,7 +104,6 @@ namespace android {
         void API_ENTRY(GL_EXTENSION_NAME(_n))() {    \
             CALL_GL_EXTENSION_API(_n);               \
         }
-
 
 #else
 
