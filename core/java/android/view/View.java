@@ -1875,7 +1875,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback, Accessibility
         mViewFlags = SOUND_EFFECTS_ENABLED | HAPTIC_FEEDBACK_ENABLED;
         // Used for debug only
         //++sInstanceCount;
-        mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        if (context != null)
+            mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         setOverScrollMode(OVER_SCROLL_IF_CONTENT_SCROLLS);
     }
 
