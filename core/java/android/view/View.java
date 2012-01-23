@@ -2695,7 +2695,8 @@ public class View implements Drawable.Callback, Drawable.Callback2, KeyEvent.Cal
         mContext = context;
         mResources = context != null ? context.getResources() : null;
         mViewFlags = SOUND_EFFECTS_ENABLED | HAPTIC_FEEDBACK_ENABLED | LAYOUT_DIRECTION_INHERIT;
-        mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        if (context != null)
+            mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         setOverScrollMode(OVER_SCROLL_IF_CONTENT_SCROLLS);
         mUserPaddingStart = -1;
         mUserPaddingEnd = -1;
