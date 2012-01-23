@@ -39,7 +39,6 @@ ifeq ($(ARCH_ARM_HAVE_TLS_REGISTER),true)
 endif
 
 ifeq ($(TARGET_ARCH),mips)
-    LOCAL_SRC_FILES += arch-$(TARGET_ARCH)/fixed_asm.S
     LOCAL_CFLAGS += -fstrict-aliasing
     # The graphics code can generate division by zero
     LOCAL_CFLAGS += -mno-check-zero-division

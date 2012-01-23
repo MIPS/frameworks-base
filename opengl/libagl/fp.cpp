@@ -19,7 +19,7 @@
 
 // ----------------------------------------------------------------------------
 
-#if !defined(__arm__) && !defined(__mips__)
+#if !defined(__arm__)
 GGLfixed gglFloatToFixed(float v) {   
     return GGLfixed(floorf(v * 65536.0f + 0.5f));
 }
