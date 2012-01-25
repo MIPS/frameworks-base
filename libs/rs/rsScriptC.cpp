@@ -45,8 +45,10 @@ ScriptC::~ScriptC() {
         BT = NULL;
     }
 #endif
-    mRSC->mHal.funcs.script.invokeFreeChildren(mRSC, this);
-    mRSC->mHal.funcs.script.destroy(mRSC, this);
+    if (mHal.drv) {
+        mRSC->mHal.funcs.script.invokeFreeChildren(mRSC, this);
+        mRSC->mHal.funcs.script.destroy(mRSC, this);
+    }
 }
 
 void ScriptC::setupScript(Context *rsc) {
