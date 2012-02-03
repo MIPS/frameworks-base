@@ -99,7 +99,9 @@ LOCAL_STATIC_LIBRARIES := \
 # use the Chrome http stack either.
 ifneq ($(strip $(ARCH_ARM_HAVE_ARMV7A)),true)
   ifneq ($(TARGET_ARCH),x86)
+    ifneq ($(TARGET_ARCH),mips)
       USE_ALT_HTTP := true
+    endif
   endif
 endif
 
