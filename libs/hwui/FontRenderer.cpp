@@ -955,6 +955,8 @@ uint32_t FontRenderer::getRemainingCacheCapacity() {
 }
 
 void FontRenderer::precacheLatin(SkPaint* paint) {
+    checkInit();
+
     // Remaining capacity is measured in %
     uint32_t remainingCapacity = getRemainingCacheCapacity();
     uint32_t precacheIndex = 0;
