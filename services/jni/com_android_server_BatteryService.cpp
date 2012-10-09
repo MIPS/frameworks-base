@@ -156,12 +156,12 @@ static int readFromFile(const char* path, char* buf, size_t size)
     return count;
 }
 
-static void setBooleanField(JNIEnv* env, jobject obj, const char* path, jfieldID fieldID)
+static void setBooleanField(JNIEnv* env, jobject obj, const char* path, jfieldID fieldID, jboolean def)
 {
     const int SIZE = 16;
     char buf[SIZE];
     
-    jboolean value = false;
+    jboolean value = def;
     if (readFromFile(path, buf, SIZE) > 0) {
         if (buf[0] != '0') {
             value = true;
@@ -170,24 +170,24 @@ static void setBooleanField(JNIEnv* env, jobject obj, const char* path, jfieldID
     env->SetBooleanField(obj, fieldID, value);
 }
 
-static void setIntField(JNIEnv* env, jobject obj, const char* path, jfieldID fieldID)
+static void setIntField(JNIEnv* env, jobject obj, const char* path, jfieldID fieldID, jint def)
 {
     const int SIZE = 128;
     char buf[SIZE];
     
-    jint value = 0;
+    jint value = def;
     if (readFromFile(path, buf, SIZE) > 0) {
         value = atoi(buf);
     }
     env->SetIntField(obj, fieldID, value);
 }
 
-static void setVoltageField(JNIEnv* env, jobject obj, const char* path, jfieldID fieldID)
+static void setVoltageField(JNIEnv* env, jobject obj, const char* path, jfieldID fieldID, jint def)
 {
     const int SIZE = 128;
     char buf[SIZE];
 
-    jint value = 0;
+    jint value = def;
     if (readFromFile(path, buf, SIZE) > 0) {
         value = atoi(buf);
         value /= gVoltageDivisor;
@@ -198,14 +198,14 @@ static void setVoltageField(JNIEnv* env, jobject obj, const char* path, jfieldID
 
 static void android_server_BatteryService_update(JNIEnv* env, jobject obj)
 {
-    setBooleanField(env, obj, gPaths.acOnlinePath, gFieldIds.mAcOnline);
-    setBooleanField(env, obj, gPaths.usbOnlinePath, gFieldIds.mUsbOnline);
-    setBooleanField(env, obj, gPaths.wirelessOnlinePath, gFieldIds.mWirelessOnline);
-    setBooleanField(env, obj, gPaths.batteryPresentPath, gFieldIds.mBatteryPresent);
-    
-    setIntField(env, obj, gPaths.batteryCapacityPath, gFieldIds.mBatteryLevel);
-    setVoltageField(env, obj, gPaths.batteryVoltagePath, gFieldIds.mBatteryVoltage);
-    setIntField(env, obj, gPaths.batteryTemperaturePath, gFieldIds.mBatteryTemperature);
+    setBooleanField(env, obj, gPaths.acOnlinePath, gFieldIds.mAcOnline, false);
+    setBooleanField(env, obj, gPaths.usbOnlinePath, gFieldIds.mUsbOnline, false);
+    setBooleanField(env, obj, gPaths.wirelessOnlinePath, gFieldIds.mWirelessOnline, false);
+    setBooleanField(env, obj, gPaths.batteryPresentPath, gFieldIds.mBatteryPresent, true);
+
+    setIntField(env, obj, gPaths.batteryCapacityPath, gFieldIds.mBatteryLevel, 70);
+    setVoltageField(env, obj, gPaths.batteryVoltagePath, gFieldIds.mBatteryVoltage, 5);
+    setIntField(env, obj, gPaths.batteryTemperaturePath, gFieldIds.mBatteryTemperature, 33);
     
     const int SIZE = 128;
     char buf[SIZE];
@@ -218,9 +218,13 @@ static void android_server_BatteryService_update(JNIEnv* env, jobject obj)
     
     if (readFromFile(gPaths.batteryHealthPath, buf, SIZE) > 0)
         env->SetIntField(obj, gFieldIds.mBatteryHealth, getBatteryHealth(buf));
+    else
+        env->SetIntField(obj, gFieldIds.mBatteryStatus, gConstants.statusDischarging);
 
     if (readFromFile(gPaths.batteryTechnologyPath, buf, SIZE) > 0)
         env->SetObjectField(obj, gFieldIds.mBatteryTechnology, env->NewStringUTF(buf));
+    else
+        env->SetObjectField(obj, gFieldIds.mBatteryTechnology, env->NewStringUTF("Dummy"));
 }
 
 static JNINativeMethod sMethods[] = {
@@ -236,6 +240,16 @@ int register_android_server_BatteryService(JNIEnv* env)
     DIR* dir = opendir(POWER_SUPPLY_PATH);
     if (dir == NULL) {
         ALOGE("Could not open %s\n", POWER_SUPPLY_PATH);
+        gPaths.acOnlinePath = NULL;
+        gPaths.usbOnlinePath = NULL;
+        gPaths.wirelessOnlinePath = NULL;
+        gPaths.batteryStatusPath = NULL;
+        gPaths.batteryHealthPath = NULL;
+        gPaths.batteryPresentPath = NULL;
+        gPaths.batteryCapacityPath = NULL;
+        gPaths.batteryVoltagePath = NULL;
+        gPaths.batteryTemperaturePath = NULL;
+        gPaths.batteryTechnologyPath = NULL;
     } else {
         while ((entry = readdir(dir))) {
             const char* name = entry->d_name;
