@@ -18,9 +18,9 @@ package com.android.internal.telephony.cdma.sms;
 
 import android.content.res.Resources;
 import android.telephony.SmsCbCmasInfo;
-import android.telephony.SmsCbMessage;
 import android.telephony.SmsMessage;
 import android.telephony.cdma.CdmaSmsCbProgramData;
+import android.telephony.cdma.CdmaSmsCbProgramResults;
 import android.text.format.Time;
 import android.util.Log;
 
@@ -32,8 +32,6 @@ import com.android.internal.util.BitwiseInputStream;
 import com.android.internal.util.BitwiseOutputStream;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.TimeZone;
 
 import static android.telephony.SmsMessage.ENCODING_16BIT;
@@ -353,7 +351,14 @@ public final class BearerData {
      * {@link android.telephony.cdma.CdmaSmsCbProgramData} objects containing the
      * operation(s) to perform.
      */
-    public List<CdmaSmsCbProgramData> serviceCategoryProgramData;
+    public ArrayList<CdmaSmsCbProgramData> serviceCategoryProgramData;
+
+    /**
+     * The Service Category Program Results subparameter informs the message center
+     * of the results of a Service Category Program Data request.
+     */
+    public ArrayList<CdmaSmsCbProgramResults> serviceCategoryProgramResults;
+
 
     private static class CodingException extends Exception {
         public CodingException(String s) {
@@ -590,7 +595,6 @@ public final class BearerData {
         byte[] payload = encodeUtf16(uData.payloadStr);
         int udhBytes = udhData.length + 1;  // Add length octet.
         int udhCodeUnits = (udhBytes + 1) / 2;
-        int udhPadding = udhBytes % 2;
         int payloadCodeUnits = payload.length / 2;
         uData.msgEncoding = UserData.ENCODING_UNICODE_16;
         uData.msgEncodingSet = true;
@@ -598,7 +602,7 @@ public final class BearerData {
         uData.payload = new byte[uData.numFields * 2];
         uData.payload[0] = (byte)udhData.length;
         System.arraycopy(udhData, 0, uData.payload, 1, udhData.length);
-        System.arraycopy(payload, 0, uData.payload, udhBytes + udhPadding, payload.length);
+        System.arraycopy(payload, 0, uData.payload, udhBytes, payload.length);
     }
 
     private static void encodeEmsUserDataPayload(UserData uData)
@@ -857,6 +861,21 @@ public final class BearerData {
         outStream.skip(6);
     }
 
+    private static void encodeScpResults(BearerData bData, BitwiseOutputStream outStream)
+        throws BitwiseOutputStream.AccessException
+    {
+        ArrayList<CdmaSmsCbProgramResults> results = bData.serviceCategoryProgramResults;
+        outStream.write(8, (results.size() * 4));   // 4 octets per program result
+        for (CdmaSmsCbProgramResults result : results) {
+            int category = result.getCategory();
+            outStream.write(8, category >> 8);
+            outStream.write(8, category);
+            outStream.write(8, result.getLanguage());
+            outStream.write(4, result.getCategoryResult());
+            outStream.skip(4);
+        }
+    }
+
     /**
      * Create serialized representation for BearerData object.
      * (See 3GPP2 C.R1001-F, v1.0, section 4.5 for layout details)
@@ -916,6 +935,10 @@ public final class BearerData {
                 outStream.write(8, SUBPARAM_MESSAGE_STATUS);
                 encodeMsgStatus(bData, outStream);
             }
+            if (bData.serviceCategoryProgramResults != null) {
+                outStream.write(8, SUBPARAM_SERVICE_CATEGORY_PROGRAM_RESULTS);
+                encodeScpResults(bData, outStream);
+            }
             return outStream.toByteArray();
         } catch (BitwiseOutputStream.AccessException ex) {
             Log.e(LOG_TAG, "BearerData encode failed: " + ex);
@@ -973,27 +996,37 @@ public final class BearerData {
     private static String decodeUtf8(byte[] data, int offset, int numFields)
         throws CodingException
     {
-        if (numFields < 0 || (numFields + offset) > data.length) {
-            throw new CodingException("UTF-8 decode failed: offset or length out of range");
-        }
-        try {
-            return new String(data, offset, numFields, "UTF-8");
-        } catch (java.io.UnsupportedEncodingException ex) {
-            throw new CodingException("UTF-8 decode failed: " + ex);
-        }
+        return decodeCharset(data, offset, numFields, 1, "UTF-8");
     }
 
     private static String decodeUtf16(byte[] data, int offset, int numFields)
         throws CodingException
     {
-        int byteCount = numFields * 2;
-        if (byteCount < 0 || (byteCount + offset) > data.length) {
-            throw new CodingException("UTF-16 decode failed: offset or length out of range");
+        // Subtract header and possible padding byte (at end) from num fields.
+        int padding = offset % 2;
+        numFields -= (offset + padding) / 2;
+        return decodeCharset(data, offset, numFields, 2, "utf-16be");
+    }
+
+    private static String decodeCharset(byte[] data, int offset, int numFields, int width,
+            String charset) throws CodingException
+    {
+        if (numFields < 0 || (numFields * width + offset) > data.length) {
+            // Try to decode the max number of characters in payload
+            int padding = offset % width;
+            int maxNumFields = (data.length - offset - padding) / width;
+            if (maxNumFields < 0) {
+                throw new CodingException(charset + " decode failed: offset out of range");
+            }
+            Log.e(LOG_TAG, charset + " decode error: offset = " + offset + " numFields = "
+                    + numFields + " data.length = " + data.length + " maxNumFields = "
+                    + maxNumFields);
+            numFields = maxNumFields;
         }
         try {
-            return new String(data, offset, byteCount, "utf-16be");
+            return new String(data, offset, numFields * width, charset);
         } catch (java.io.UnsupportedEncodingException ex) {
-            throw new CodingException("UTF-16 decode failed: " + ex);
+            throw new CodingException(charset + " decode failed: " + ex);
         }
     }
 
@@ -1049,14 +1082,7 @@ public final class BearerData {
     private static String decodeLatin(byte[] data, int offset, int numFields)
         throws CodingException
     {
-        if (numFields < 0 || (numFields + offset) > data.length) {
-            throw new CodingException("ISO-8859-1 decode failed: offset or length out of range");
-        }
-        try {
-            return new String(data, offset, numFields, "ISO-8859-1");
-        } catch (java.io.UnsupportedEncodingException ex) {
-            throw new CodingException("ISO-8859-1 decode failed: " + ex);
-        }
+        return decodeCharset(data, offset, numFields, 1, "ISO-8859-1");
     }
 
     private static void decodeUserDataPayload(UserData userData, boolean hasUserDataHeader)
@@ -1638,7 +1664,7 @@ public final class BearerData {
         while (paramBits >= CATEGORY_FIELD_MIN_SIZE) {
             int operation = inStream.read(4);
             int category = (inStream.read(8) << 8) | inStream.read(8);
-            String language = getLanguageCodeForValue(inStream.read(8));
+            int language = inStream.read(8);
             int maxMessages = inStream.read(8);
             int alertOption = inStream.read(4);
             int numFields = inStream.read(8);
