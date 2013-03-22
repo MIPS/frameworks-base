@@ -44,6 +44,7 @@ import com.android.server.IntentResolver;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
+import org.xmlpull.v1.XmlPullParserFactory;
 
 import android.app.ActivityManager;
 import android.app.ActivityManagerNative;
@@ -132,6 +133,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
@@ -4116,6 +4118,44 @@ public class PackageManagerService extends IPackageManager.Stub {
                             mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
                             return null;
                         }
+                    }
+
+                    try {
+                        XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
+                        factory.setNamespaceAware(true);
+                        XmlPullParser xpp = factory.newPullParser();
+                        try {
+                            File f = new File("/vendor/lib","ForceInstallArm.xml");
+                            InputStream in = new FileInputStream(f);
+                            xpp.setInput(in, "UTF-8");
+                        } catch (FileNotFoundException e) {
+                        }
+                        int eventType = xpp.getEventType();
+                        while (eventType != XmlPullParser.END_DOCUMENT) {
+                            if (eventType == XmlPullParser.START_TAG) {
+                                if (xpp.getName().equals("apk")) {
+                                    if (pkg.packageName.equals(xpp.getAttributeValue(0)) &&
+                                        pkg.mVersionName.equals(xpp.getAttributeValue(1))) {
+                                        Build.ForceInstallArm = true;
+                                        if (xpp.getAttributeValue(2).equals("armeabi"))
+                                            Build.ABI = "armeabi";
+                                        else if (xpp.getAttributeValue(2).equals("armeabi-v7a"))
+                                            Build.ABI = "armeabi-v7a";
+                                        else
+                                            Build.ABI = "mips";
+                                        if (xpp.getAttributeValue(5).indexOf("neon") != -1) {
+                                            //contains neon instruction set
+                                            Build.ContainNeon = true;
+                                        }
+                                    }
+                                }
+                            }
+                            try {
+                                eventType = xpp.next();
+                            } catch(IOException e){
+                            }
+                        }
+                    } catch(XmlPullParserException e) {
                     }
 
                     if (DEBUG_INSTALL) Slog.i(TAG, "Linking native library dir for " + path);

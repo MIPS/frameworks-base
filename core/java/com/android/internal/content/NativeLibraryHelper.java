@@ -47,7 +47,8 @@ public class NativeLibraryHelper {
 
     private native static int nativeCopyNativeBinaries(String filePath, String sharedLibraryPath,
             String cpuAbi, String cpuAbi2);
-
+    private native static int nativeCopyArm(String filePath, String sharedLibraryPath,
+            String cpuAbi, String cpuAbi2);
     /**
      * Copies native binaries to a shared library directory.
      *
@@ -58,7 +59,15 @@ public class NativeLibraryHelper {
      */
     public static int copyNativeBinariesIfNeededLI(File apkFile, File sharedLibraryDir) {
         final String cpuAbi = Build.CPU_ABI;
-        final String cpuAbi2 = Build.CPU_ABI2;
+        String cpuAbi2 = Build.CPU_ABI2;
+        if (Build.ContainNeon) {
+            cpuAbi2 = "NEON";
+            Build.ContainNeon = false;
+        }
+        if (Build.ForceInstallArm) {
+            Build.ForceInstallArm = false;
+            return nativeCopyArm(apkFile.getPath(), sharedLibraryDir.getPath(), Build.ABI,cpuAbi2);
+        }
         return nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(), cpuAbi,
                 cpuAbi2);
     }

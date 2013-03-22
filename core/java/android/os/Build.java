@@ -454,6 +454,10 @@ public class Build {
     public static final boolean IS_DEBUGGABLE =
             SystemProperties.getInt("ro.debuggable", 0) == 1;
 
+    public static boolean ForceInstallArm = false;
+    public static boolean ContainNeon = false;
+    public static String ABI = "unknown";
+
     /**
      * Returns the version string for the radio firmware.  May return
      * null (if, for instance, the radio is not currently on).

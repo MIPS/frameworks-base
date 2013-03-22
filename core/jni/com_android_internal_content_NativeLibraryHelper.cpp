@@ -30,6 +30,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -54,13 +55,26 @@ namespace android {
 // These match PackageManager.java install codes
 typedef enum {
     INSTALL_SUCCEEDED = 1,
+    INSTALL_SUCCEEDED_EXIST = 2,
     INSTALL_FAILED_INVALID_APK = -2,
+    INSTALL_FAILED_MIS_ABI = -3,
     INSTALL_FAILED_INSUFFICIENT_STORAGE = -4,
     INSTALL_FAILED_CONTAINER_ERROR = -18,
+    INSTALL_FAILED_CHECK_UNSUPPORTED_APK = -50,//abandoned,designed to make certain apk install failed
     INSTALL_FAILED_INTERNAL_ERROR = -110,
 } install_status_t;
 
 typedef install_status_t (*iterFunc)(JNIEnv*, void*, ZipFileRO*, ZipEntryRO, const char*);
+
+ /*
+   The following flags determines the abi order when certain apk is
+   installed and what kind of cpuinfo we should show to certain apk.
+   By default, we choose the abi which contains native libs more than others.
+   */
+static int armv7 = 0;
+static int armv5 = 0;
+static int summed = 0;
+static bool neon = false;
 
 // Equivalent to isFilenameSafe
 static bool
@@ -96,8 +110,7 @@ isFilenameSafe(const char* filename)
 }
 
 static bool
-isFileDifferent(const char* filePath, size_t fileSize, time_t modifiedTime,
-        long zipCrc, struct stat64* st)
+isFileDifferent(char* filePath, size_t fileSize, struct stat64* st)
 {
     if (lstat64(filePath, st) < 0) {
         // File is not found or cannot be read.
@@ -110,32 +123,6 @@ isFileDifferent(const char* filePath, size_t fileSize, time_t modifiedTime,
     }
 
     if (st->st_size != fileSize) {
-        return true;
-    }
-
-    // For some reason, bionic doesn't define st_mtime as time_t
-    if (time_t(st->st_mtime) != modifiedTime) {
-        ALOGV("mod time doesn't match: %ld vs. %ld\n", st->st_mtime, modifiedTime);
-        return true;
-    }
-
-    int fd = TEMP_FAILURE_RETRY(open(filePath, O_RDONLY));
-    if (fd < 0) {
-        ALOGV("Couldn't open file %s: %s", filePath, strerror(errno));
-        return true;
-    }
-
-    long crc = crc32(0L, Z_NULL, 0);
-    unsigned char crcBuffer[16384];
-    ssize_t numBytes;
-    while ((numBytes = TEMP_FAILURE_RETRY(read(fd, crcBuffer, sizeof(crcBuffer)))) > 0) {
-        crc = crc32(crc, crcBuffer, numBytes);
-    }
-    close(fd);
-
-    ALOGV("%s: crc = %lx, zipCrc = %lx\n", filePath, crc, zipCrc);
-
-    if (crc != zipCrc) {
         return true;
     }
 
@@ -170,10 +157,9 @@ copyFileIfChanged(JNIEnv *env, void* arg, ZipFileRO* zipFile, ZipEntryRO zipEntr
 
     size_t uncompLen;
     long when;
-    long crc;
     time_t modTime;
 
-    if (!zipFile->getEntryInfo(zipEntry, NULL, &uncompLen, NULL, NULL, &when, &crc)) {
+    if (!zipFile->getEntryInfo(zipEntry, NULL, &uncompLen, NULL, NULL, &when, NULL)) {
         ALOGD("Couldn't read zip entry info\n");
         return INSTALL_FAILED_INVALID_APK;
     } else {
@@ -184,7 +170,7 @@ copyFileIfChanged(JNIEnv *env, void* arg, ZipFileRO* zipFile, ZipEntryRO zipEntr
 
     // Build local file path
     const size_t fileNameLen = strlen(fileName);
-    char localFileName[nativeLibPath.size() + fileNameLen + 2];
+    char localFileName[nativeLibPath.size() + fileNameLen + 10]; // some lib are *-arm.so
 
     if (strlcpy(localFileName, nativeLibPath.c_str(), sizeof(localFileName)) != nativeLibPath.size()) {
         ALOGD("Couldn't allocate local file name for library");
@@ -201,8 +187,8 @@ copyFileIfChanged(JNIEnv *env, void* arg, ZipFileRO* zipFile, ZipEntryRO zipEntr
 
     // Only copy out the native file if it's different.
     struct stat st;
-    if (!isFileDifferent(localFileName, uncompLen, modTime, crc, &st)) {
-        return INSTALL_SUCCEEDED;
+    if (!isFileDifferent(localFileName, uncompLen, &st)) {
+        return INSTALL_SUCCEEDED_EXIST;
     }
 
     char localTmpFileName[nativeLibPath.size() + TMP_FILE_PATTERN_LEN + 2];
@@ -267,23 +253,36 @@ copyFileIfChanged(JNIEnv *env, void* arg, ZipFileRO* zipFile, ZipEntryRO zipEntr
 }
 
 static install_status_t
-iterateOverNativeFiles(JNIEnv *env, jstring javaFilePath, jstring javaCpuAbi, jstring javaCpuAbi2,
-        iterFunc callFunc, void* callArg) {
+iterateOverNativeFiles(JNIEnv *env, jstring javaFilePath, jstring javaCpuAbi, bool flagExecCommand,
+                       iterFunc callFunc, void* callArg)
+{
     ScopedUtfChars filePath(env, javaFilePath);
     ScopedUtfChars cpuAbi(env, javaCpuAbi);
-    ScopedUtfChars cpuAbi2(env, javaCpuAbi2);
+
+    bool flagAbiFilter = false;
+    bool haveLibso = false;
+    char MC_arm_cpufileName[128];
+    char Neon[128];
 
     ZipFileRO zipFile;
 
-    if (zipFile.open(filePath.c_str()) != NO_ERROR) {
-        ALOGI("Couldn't open APK %s\n", filePath.c_str());
+    char sdFilePath[filePath.size() + 2];
+    strcpy(sdFilePath,filePath.c_str());
+    char midChar[] = ";!";
+    char *filePathName = NULL , *pkgName = NULL;
+    if ((pkgName = strstr(sdFilePath, midChar)) != NULL) {
+        *pkgName = '\0';
+        pkgName = pkgName + 2;
+    }
+
+    if (zipFile.open(sdFilePath) != NO_ERROR) {
+        ALOGI("Couldn't open APK %s", sdFilePath);
         return INSTALL_FAILED_INVALID_APK;
     }
 
     const int N = zipFile.getNumEntries();
 
     char fileName[PATH_MAX];
-    bool hasPrimaryAbi = false;
 
     for (int i = 0; i < N; i++) {
         const ZipEntryRO entry = zipFile.findEntryByIndex(i);
@@ -309,35 +308,32 @@ iterateOverNativeFiles(JNIEnv *env, jstring javaFilePath, jstring javaCpuAbi, js
         }
 
         const char* lastSlash = strrchr(fileName, '/');
-        ALOG_ASSERT(lastSlash != NULL, "last slash was null somehow for %s\n", fileName);
+        // ALOG_ASSERT(lastSlash != NULL, "last slash was null somehow for %s\n", fileName);
 
         // Check to make sure the CPU ABI of this file is one we support.
         const char* cpuAbiOffset = fileName + APK_LIB_LEN;
         const size_t cpuAbiRegionSize = lastSlash - cpuAbiOffset;
+        haveLibso = true;
 
-        ALOGV("Comparing ABIs %s and %s versus %s\n", cpuAbi.c_str(), cpuAbi2.c_str(), cpuAbiOffset);
+        ALOGD("Comparing ABIs %s  versus %s", cpuAbi.c_str(),  cpuAbiOffset);
         if (cpuAbi.size() == cpuAbiRegionSize
                 && *(cpuAbiOffset + cpuAbi.size()) == '/'
                 && !strncmp(cpuAbiOffset, cpuAbi.c_str(), cpuAbiRegionSize)) {
-            ALOGV("Using primary ABI %s\n", cpuAbi.c_str());
-            hasPrimaryAbi = true;
-        } else if (cpuAbi2.size() == cpuAbiRegionSize
-                && *(cpuAbiOffset + cpuAbi2.size()) == '/'
-                && !strncmp(cpuAbiOffset, cpuAbi2.c_str(), cpuAbiRegionSize)) {
-
-            /*
-             * If this library matches both the primary and secondary ABIs,
-             * only use the primary ABI.
-             */
-            if (hasPrimaryAbi) {
-                ALOGV("Already saw primary ABI, skipping secondary ABI %s\n", cpuAbi2.c_str());
-                continue;
-            } else {
-                ALOGV("Using secondary ABI %s\n", cpuAbi2.c_str());
-            }
+            ALOGD("Using ABI %s", cpuAbi.c_str());
+        /* cpuAbi2 case omitted for MagicCode */
         } else {
-            ALOGV("abi didn't match anything: %s (end at %zd)\n", cpuAbiOffset, cpuAbiRegionSize);
+            ALOGD("abi didn't match anything: %s (end at %zd)", cpuAbiOffset, cpuAbiRegionSize);
             continue;
+        }
+
+        flagAbiFilter = true;
+
+        /*
+         * if abi is not ("armeabi" && "armeabi-v7a"); we will not exec command.
+         */
+        if (flagExecCommand && (strcmp(cpuAbi.c_str(), "armeabi"))
+                            && (strcmp(cpuAbi.c_str(), "armeabi-v7a"))) {
+            flagExecCommand = false;
         }
 
         // If this is a .so file, check to see if we need to copy it.
@@ -348,10 +344,34 @@ iterateOverNativeFiles(JNIEnv *env, jstring javaFilePath, jstring javaCpuAbi, js
 
             install_status_t ret = callFunc(env, callArg, &zipFile, entry, lastSlash + 1);
 
-            if (ret != INSTALL_SUCCEEDED) {
+            if (ret != INSTALL_SUCCEEDED && ret != INSTALL_SUCCEEDED_EXIST) {
                 ALOGV("Failure for entry %s", lastSlash + 1);
                 return ret;
             }
+            if (flagExecCommand && ret != INSTALL_SUCCEEDED_EXIST) {
+                jstring* javaNativeLibPath = (jstring*) callArg;
+                ScopedUtfChars nativeLibPath(env, *javaNativeLibPath);
+                snprintf(MC_arm_cpufileName, 128, "%s/.MC_arm", nativeLibPath.c_str());
+                snprintf(Neon, 128, "%s/.Neon", nativeLibPath.c_str());
+            }
+        }
+    }
+
+    if ((!flagAbiFilter) && haveLibso)
+        return INSTALL_FAILED_MIS_ABI;
+    if (flagExecCommand && haveLibso) {
+        int MC_arm_fd = -1;
+        if ((MC_arm_fd = open(MC_arm_cpufileName, O_CREAT|O_RDONLY, 0755)) < 0)
+            ALOGD("%s create error errno=%d", MC_arm_cpufileName, errno);
+        else
+            close(MC_arm_fd);
+        if (neon) {
+            neon = false;
+            int Neon_fd = -1;
+            if ((Neon_fd = open(Neon, O_CREAT|O_RDONLY, 0755)) < 0)
+                ALOGD("%s create error errno=%d", Neon, errno);
+            else
+                close(Neon_fd);
         }
     }
 
@@ -359,21 +379,164 @@ iterateOverNativeFiles(JNIEnv *env, jstring javaFilePath, jstring javaCpuAbi, js
 }
 
 static jint
-com_android_internal_content_NativeLibraryHelper_copyNativeBinaries(JNIEnv *env, jclass clazz,
-        jstring javaFilePath, jstring javaNativeLibPath, jstring javaCpuAbi, jstring javaCpuAbi2)
+com_android_internal_content_NativeLibraryHelper_copyArm(JNIEnv *env, jclass clazz, jstring javaFilePath,
+                                                         jstring javaNativeLibPath, jstring javaCpuAbi,
+                                                         jstring javaCpuAbi2)
 {
-    return (jint) iterateOverNativeFiles(env, javaFilePath, javaCpuAbi, javaCpuAbi2,
-            copyFileIfChanged, &javaNativeLibPath);
+    int i;
+    int ret = 0;
+    const char *arme = "armeabi";
+    const char *armev7 = "armeabi-v7a";
+    ScopedUtfChars abi(env, javaCpuAbi);
+    ScopedUtfChars abi2(env, javaCpuAbi2);
+    jstring  CpuAbi;
+
+    if (!strcmp(abi2.c_str(), "NEON"))
+        neon = true;
+    if (!strcmp(abi.c_str(), "armeabi"))
+        CpuAbi = env->NewStringUTF("armeabi");
+    else if (!strcmp(abi.c_str(), "armeabi-v7a"))
+        CpuAbi = env->NewStringUTF("armeabi");
+    else
+        CpuAbi = env->NewStringUTF("mips");
+
+    ret = iterateOverNativeFiles(env, javaFilePath, CpuAbi, true, copyFileIfChanged, &javaNativeLibPath);
+
+    if (ret == INSTALL_FAILED_MIS_ABI)
+        ret = INSTALL_SUCCEEDED;
+
+    return (jint)ret;
+}
+
+static jint
+com_android_internal_content_NativeLibraryHelper_copyNativeBinaries(JNIEnv *env, jclass clazz, jstring javaFilePath,
+                                                                    jstring javaNativeLibPath, jstring javaCpuAbi,
+                                                                    jstring javaCpuAbi2)
+{
+    int i;
+    int ret = 0;
+    const char *arme = "armeabi";
+    const char *armev7 = "armeabi-v7a";
+    armv5 = armv7 = 0;
+    ScopedUtfChars abi2(env, javaCpuAbi2);
+    jstring  CpuAbi;
+    /*
+     * Decide the abi order by the list
+     */
+    if (!strcmp(abi2.c_str(), "NEON"))
+        neon = true;
+    if (!summed) {
+        size_t totalSize = 0;
+        static int a[4];
+        for (i = 0; i < 4; i++) {
+            if (i == 0) {
+                CpuAbi = javaCpuAbi;
+            } else if (i == 1) {
+                CpuAbi = env->NewStringUTF(armev7);
+            } else if (i == 2) {
+                CpuAbi = env->NewStringUTF(arme);
+            } else {
+                CpuAbi = env->NewStringUTF("mips-r2");
+            }
+
+            ret = iterateOverNativeFiles(env, javaFilePath, CpuAbi, false, sumFiles, &totalSize);
+            a[i] = totalSize;
+            ALOGD("totalSize = %d,      i = %d",a[i],i);
+            if (ret == INSTALL_FAILED_MIS_ABI)
+                continue;
+        }
+        if (a[0] >= 0) {
+            if (a[1] - a[0] > 0 || a[2] - a[1] -a[0] > 0) {
+                if (a[2] - a[1] <= a[1] - a[0]) {
+                    armv7 = 1;
+                } else {
+                    armv5 = 1;
+                }
+            }
+        }
+    }
+    if (armv7 || armv5) {
+        if (armv7) {
+            CpuAbi = env->NewStringUTF(armev7);
+        } else if (armv5)
+            CpuAbi = env->NewStringUTF(arme);
+        ret = iterateOverNativeFiles(env, javaFilePath, CpuAbi, true, copyFileIfChanged, &javaNativeLibPath);
+        if (ret == INSTALL_FAILED_MIS_ABI)
+            ret = INSTALL_SUCCEEDED;
+        return (jint)ret;
+    }
+    for (i = 0; i < 4; i++) {
+        if (i == 0) {
+            CpuAbi = javaCpuAbi;
+        } else if (i == 1) {
+            CpuAbi = env->NewStringUTF(armev7);
+        } else if (i == 2) {
+            CpuAbi = env->NewStringUTF(arme);
+        } else {
+            CpuAbi = env->NewStringUTF("mips-r2");
+        }
+
+        ret = iterateOverNativeFiles(env, javaFilePath, CpuAbi, true, copyFileIfChanged, &javaNativeLibPath);
+        if (ret == INSTALL_FAILED_MIS_ABI) {
+            continue;
+        } else {
+            break;
+        }
+    }
+
+    if (ret == INSTALL_FAILED_MIS_ABI) {
+        ret = INSTALL_SUCCEEDED;
+    }
+    summed = 0;
+    return (jint)ret;
+
 }
 
 static jlong
 com_android_internal_content_NativeLibraryHelper_sumNativeBinaries(JNIEnv *env, jclass clazz,
         jstring javaFilePath, jstring javaCpuAbi, jstring javaCpuAbi2)
 {
+
+    int i;
+    int ret = 0;
     size_t totalSize = 0;
+    const char *arme = "armeabi";
+    const char *armev7 = "armeabi-v7a";
+    jstring  CpuAbi;
+    static int a[4];
+    summed = 1;
+    for (i=0; i < 4; i++){
+        if (i == 0) {
+            CpuAbi = javaCpuAbi;
+        } else if (i == 1) {
+            CpuAbi = env->NewStringUTF(armev7);
+        } else if (i == 2) {
+            CpuAbi = env->NewStringUTF(arme);
+        } else {
+            CpuAbi = env->NewStringUTF("mips-r2");
+        }
 
-    iterateOverNativeFiles(env, javaFilePath, javaCpuAbi, javaCpuAbi2, sumFiles, &totalSize);
+        ret = iterateOverNativeFiles(env, javaFilePath, CpuAbi, false, sumFiles, &totalSize);
+        a[i] = totalSize;
+        if (ret == INSTALL_FAILED_MIS_ABI) {
+            continue;
+        } else {
+            //break;
+        }
+    }
 
+    /*
+     * change to choose abi order
+     */
+    if (a[0] >= 0) {
+        if (a[1] - a[0] > 0 || a[2] - a[1] -a[0] > 0) {
+            if (a[2] - a[1] <= a[1] - a[0]) {
+                armv7 = 1;
+            } else {
+                armv5 = 1;
+            }
+        }
+    }
     return totalSize;
 }
 
@@ -381,6 +544,9 @@ static JNINativeMethod gMethods[] = {
     {"nativeCopyNativeBinaries",
             "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
             (void *)com_android_internal_content_NativeLibraryHelper_copyNativeBinaries},
+    {"nativeCopyArm",
+            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
+            (void *)com_android_internal_content_NativeLibraryHelper_copyArm},
     {"nativeSumNativeBinaries",
             "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)J",
             (void *)com_android_internal_content_NativeLibraryHelper_sumNativeBinaries},
