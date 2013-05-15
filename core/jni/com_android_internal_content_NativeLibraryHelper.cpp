@@ -110,7 +110,8 @@ isFilenameSafe(const char* filename)
 }
 
 static bool
-isFileDifferent(char* filePath, size_t fileSize, struct stat64* st)
+isFileDifferent(const char* filePath, size_t fileSize, time_t modifiedTime,
+        long zipCrc, struct stat64* st)
 {
     if (lstat64(filePath, st) < 0) {
         // File is not found or cannot be read.
@@ -125,6 +126,34 @@ isFileDifferent(char* filePath, size_t fileSize, struct stat64* st)
     if (st->st_size != fileSize) {
         return true;
     }
+
+    // For some reason, bionic doesn't define st_mtime as time_t
+    if (time_t(st->st_mtime) != modifiedTime) {
+        ALOGV("mod time doesn't match: %ld vs. %ld\n", st->st_mtime, modifiedTime);
+        return true;
+    }
+
+#if 0  // speedup boot by skipping redundant crc calcs
+    int fd = TEMP_FAILURE_RETRY(open(filePath, O_RDONLY));
+    if (fd < 0) {
+        ALOGV("Couldn't open file %s: %s", filePath, strerror(errno));
+        return true;
+    }
+
+    long crc = crc32(0L, Z_NULL, 0);
+    unsigned char crcBuffer[16384];
+    ssize_t numBytes;
+    while ((numBytes = TEMP_FAILURE_RETRY(read(fd, crcBuffer, sizeof(crcBuffer)))) > 0) {
+        crc = crc32(crc, crcBuffer, numBytes);
+    }
+    close(fd);
+
+    ALOGV("%s: crc = %lx, zipCrc = %lx\n", filePath, crc, zipCrc);
+
+    if (crc != zipCrc) {
+        return true;
+    }
+#endif
 
     return false;
 }
@@ -157,9 +186,10 @@ copyFileIfChanged(JNIEnv *env, void* arg, ZipFileRO* zipFile, ZipEntryRO zipEntr
 
     size_t uncompLen;
     long when;
+    long crc;
     time_t modTime;
 
-    if (!zipFile->getEntryInfo(zipEntry, NULL, &uncompLen, NULL, NULL, &when, NULL)) {
+    if (!zipFile->getEntryInfo(zipEntry, NULL, &uncompLen, NULL, NULL, &when, &crc)) {
         ALOGD("Couldn't read zip entry info\n");
         return INSTALL_FAILED_INVALID_APK;
     } else {
@@ -187,7 +217,7 @@ copyFileIfChanged(JNIEnv *env, void* arg, ZipFileRO* zipFile, ZipEntryRO zipEntr
 
     // Only copy out the native file if it's different.
     struct stat st;
-    if (!isFileDifferent(localFileName, uncompLen, &st)) {
+    if (!isFileDifferent(localFileName, uncompLen, modTime, crc, &st)) {
         return INSTALL_SUCCEEDED_EXIST;
     }
 
