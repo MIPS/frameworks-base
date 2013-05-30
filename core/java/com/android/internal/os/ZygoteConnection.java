@@ -241,10 +241,8 @@ class ZygoteConnection {
             if ((parsedArgs.niceName != null) &&
                 (new File("/data/data/" + parsedArgs.niceName + "/lib/.MC_arm").exists())) {
                 parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_DEBUGGER << 5);
-            }
-            if ((parsedArgs.niceName != null) &&
-                (new File("/data/data/" + parsedArgs.niceName + "/lib/.Neon").exists())) {
-                parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_DEBUGGER << 6);
+                if (new File("/data/data/" + parsedArgs.niceName + "/lib/.Neon").exists())
+                    parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_DEBUGGER << 6);
             }
 
             pid = Zygote.forkAndSpecialize(parsedArgs.uid, parsedArgs.gid, parsedArgs.gids,

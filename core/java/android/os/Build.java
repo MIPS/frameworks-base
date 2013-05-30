@@ -454,14 +454,6 @@ public class Build {
     public static final boolean IS_DEBUGGABLE =
             SystemProperties.getInt("ro.debuggable", 0) == 1;
 
-    /** MIPS MagicCode support */
-    /** @hide */
-    public static boolean ForceInstallArm = false;
-    /** @hide */
-    public static boolean ContainNeon = false;
-    /** @hide */
-    public static String ABI = "unknown";
-
     /**
      * Returns the version string for the radio firmware.  May return
      * null (if, for instance, the radio is not currently on).

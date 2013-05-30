@@ -856,6 +856,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                     PackageManager.VERIFICATION_ALLOW,
                                     state.getInstallArgs().getUser());
                             try {
+                                // did customizeAbiByAppname() when this pending step was started
                                 ret = args.copyApk(mContainerService, true);
                             } catch (RemoteException e) {
                                 Slog.e(TAG, "Could not contact the ContainerService");
@@ -895,6 +896,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                             broadcastPackageVerified(verificationId, args.packageURI,
                                     response.code, state.getInstallArgs().getUser());
                             try {
+                                // did customizeAbiByAppname() when this pending step was started
                                 ret = args.copyApk(mContainerService, true);
                             } catch (RemoteException e) {
                                 Slog.e(TAG, "Could not contact the ContainerService");
@@ -4097,6 +4099,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 + path);
                     }
                 } else {
+                    NativeLibraryHelper.customizeAbiByAppname(pkg.packageName);
                     if (!isForwardLocked(pkg) && !isExternal(pkg)) {
                         /*
                          * Update native library dir if it starts with
@@ -4118,44 +4121,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                             mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
                             return null;
                         }
-                    }
-
-                    try {
-                        XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
-                        factory.setNamespaceAware(true);
-                        XmlPullParser xpp = factory.newPullParser();
-                        try {
-                            File f = new File("/vendor/lib","ForceInstallArm.xml");
-                            InputStream in = new FileInputStream(f);
-                            xpp.setInput(in, "UTF-8");
-                        } catch (FileNotFoundException e) {
-                        }
-                        int eventType = xpp.getEventType();
-                        while (eventType != XmlPullParser.END_DOCUMENT) {
-                            if (eventType == XmlPullParser.START_TAG) {
-                                if (xpp.getName().equals("apk")) {
-                                    if (pkg.packageName.equals(xpp.getAttributeValue(0)) &&
-                                        pkg.mVersionName.equals(xpp.getAttributeValue(1))) {
-                                        Build.ForceInstallArm = true;
-                                        if (xpp.getAttributeValue(2).equals("armeabi"))
-                                            Build.ABI = "armeabi";
-                                        else if (xpp.getAttributeValue(2).equals("armeabi-v7a"))
-                                            Build.ABI = "armeabi-v7a";
-                                        else
-                                            Build.ABI = "mips";
-                                        if (xpp.getAttributeValue(5).indexOf("neon") != -1) {
-                                            //contains neon instruction set
-                                            Build.ContainNeon = true;
-                                        }
-                                    }
-                                }
-                            }
-                            try {
-                                eventType = xpp.next();
-                            } catch(IOException e){
-                            }
-                        }
-                    } catch(XmlPullParserException e) {
                     }
 
                     if (DEBUG_INSTALL) Slog.i(TAG, "Linking native library dir for " + path);
@@ -6462,6 +6427,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                     userIdentifier = UserHandle.USER_OWNER;
                 }
 
+                NativeLibraryHelper.customizeAbiByAppname(pkgLite.packageName);
+
                 /*
                  * Determine if we have any installed package verifiers. If we
                  * do, then we'll defer to them to verify the packages.
@@ -6982,6 +6949,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                 nativeLibraryFile.delete();
             }
             try {
+                // did customizeAbiByAppname() before the step calling copyApk()
                 int copyRet = copyNativeLibrariesForInternalApp(codeFile, nativeLibraryFile);
                 if (copyRet != PackageManager.INSTALL_SUCCEEDED) {
                     return copyRet;
@@ -10034,6 +10002,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                     final File newNativeDir = new File(newNativePath);
 
                                     if (!isForwardLocked(pkg) && !isExternal(pkg)) {
+                                        NativeLibraryHelper.customizeAbiByAppname(pkg.packageName);
                                         NativeLibraryHelper.copyNativeBinariesIfNeededLI(
                                                 new File(newCodePath), newNativeDir);
                                     }

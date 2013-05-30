@@ -16,10 +16,19 @@
 
 package com.android.internal.content;
 
+import android.content.pm.PackageParser;
 import android.os.Build;
 import android.util.Slog;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlPullParserFactory;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.io.IOException;
+
 
 /**
  * Native libraries helper.
@@ -31,24 +40,96 @@ public class NativeLibraryHelper {
 
     private static final boolean DEBUG_NATIVE = false;
 
+    /** Per-application MagicCode hints for emulating Arm code on MIPS: */
+
+    /** These are static global vars rather than passed-through args, because
+        - Most of the direct callers deal only with filenames, not package class objects.
+        - The filenames are sometimes random temp names without package names.
+        - The upper layer knowing about package names is sometimes in some asynchronous thread.
+     */
+
+    /** Unique name of application in Google Play market, version independent */
+    private static String MCPackageName = "";
+
+    /** Per-app tuning of Build.CPU_ABI2.  The preferred native code ABI to unpack from apk when
+        the primary CPU_ABI is absent.  "armeabi" disables Armv7 libs, "mips" disables all Arm libs.
+     */
+    private static String MCCpuAbi2 = Build.CPU_ABI2;
+
+    /** Default for Arm apps, whether /proc/cpuinfo should encourage optional use of Neon instrs */
+    public static final boolean MCShowNeonDefault = true;
+
+    /** Per-app tuning of whether /proc/cpuinfo should encourage optional use of Neon instrs */
+    private static boolean MCShowNeon = MCShowNeonDefault;
+
+    /** Save apk package name for per-application tuning of fat apk unpacking */
+    public static void customizeAbiByAppname(String packageName) {
+        MCPackageName = packageName;
+    }
+
+    /** Lookup per-application hints for how to emulate Arm native code on MIPS */
+    private static void lookupCustomizedAbi() {
+
+        /* Defaults for when app is not named in the magiccode_prefs.xml file */
+        MCCpuAbi2 = Build.CPU_ABI2;
+        MCCpuAbi2 = "armeabi";   /* temp workaround, until libakim works well on more armv7 apps */
+        MCShowNeon = MCShowNeonDefault;
+
+        if (MCPackageName.isEmpty() || !Build.CPU_ABI.equals("mips"))
+            return;
+
+        Slog.d(TAG, "Customizing CpuAbi2 for " + MCPackageName);
+        try {
+            InputStream in = new FileInputStream("/data/system/magiccode_prefs.xml");
+            try {
+                XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
+                factory.setNamespaceAware(true);
+                XmlPullParser xpp = factory.newPullParser();
+                xpp.setInput(in, "UTF-8");
+                int eventType = xpp.getEventType();
+                while (eventType != XmlPullParser.END_DOCUMENT) {
+                    if (eventType == XmlPullParser.START_TAG &&
+                        xpp.getName().equals("apk")            ) {
+                        Slog.d(TAG, "prefs for "+xpp.getAttributeValue(0));  /* TODO: delete this */
+                        /* TODO: check field names instead of assuming positions */
+                        if (xpp.getAttributeValue(0).equals(MCPackageName) ||
+                            xpp.getAttributeValue(0).equals("*")             ) {
+                            MCCpuAbi2 = xpp.getAttributeValue(2);
+                            MCShowNeon = xpp.getAttributeValue(5).indexOf("neon") != -1;
+                            Slog.d(TAG, "Customizing CpuAbi2 to " + MCCpuAbi2 +
+                                        ", neon " + MCShowNeon +
+                                        " for package " + MCPackageName);
+                            break;
+                        }
+                    }
+                    eventType = xpp.next();
+                }
+            } catch (IOException e) {
+                Slog.d(TAG, "Mangled magiccode_prefs.xml file", e);
+            } catch (XmlPullParserException e) {
+                Slog.d(TAG, "Mangled magiccode_prefs.xml file", e);
+            }
+            in.close();
+        } catch (FileNotFoundException e) {
+        } catch (IOException e) {
+        }
+    }
+
     private static native long nativeSumNativeBinaries(String file, String cpuAbi, String cpuAbi2);
 
     /**
      * Sums the size of native binaries in an APK.
      *
      * @param apkFile APK file to scan for native libraries
-     * @return size of all native binary files in bytes
+     * @return upper bound on size of native binary files for possible abi's, in bytes
      */
     public static long sumNativeBinariesLI(File apkFile) {
-        final String cpuAbi = Build.CPU_ABI;
-        final String cpuAbi2 = Build.CPU_ABI2;
-        return nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
+        /* don't know packageName for looking up custom abi */
+        return nativeSumNativeBinaries(apkFile.getPath(), Build.CPU_ABI, Build.CPU_ABI2);
     }
 
     private native static int nativeCopyNativeBinaries(String filePath, String sharedLibraryPath,
-            String cpuAbi, String cpuAbi2);
-    private native static int nativeCopyArm(String filePath, String sharedLibraryPath,
-            String cpuAbi, String cpuAbi2);
+            String cpuAbi, String cpuAbi2, boolean showNeon);
     /**
      * Copies native binaries to a shared library directory.
      *
@@ -58,18 +139,9 @@ public class NativeLibraryHelper {
      *         error code from that class if not
      */
     public static int copyNativeBinariesIfNeededLI(File apkFile, File sharedLibraryDir) {
-        final String cpuAbi = Build.CPU_ABI;
-        String cpuAbi2 = Build.CPU_ABI2;
-        if (Build.ContainNeon) {
-            cpuAbi2 = "NEON";
-            Build.ContainNeon = false;
-        }
-        if (Build.ForceInstallArm) {
-            Build.ForceInstallArm = false;
-            return nativeCopyArm(apkFile.getPath(), sharedLibraryDir.getPath(), Build.ABI,cpuAbi2);
-        }
-        return nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(), cpuAbi,
-                cpuAbi2);
+        lookupCustomizedAbi();
+        return nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
+                                        Build.CPU_ABI, MCCpuAbi2, MCShowNeon);
     }
 
     // Convenience method to call removeNativeBinariesFromDirLI(File)
