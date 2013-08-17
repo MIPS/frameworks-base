@@ -385,11 +385,10 @@ iterateOverNativeFiles(JNIEnv *env, jstring javaFilePath, jstring javaCpuAbi, bo
     return INSTALL_SUCCEEDED;
 }
 
-
 static jint
 com_android_internal_content_NativeLibraryHelper_copyNativeBinaries(JNIEnv *env, jclass clazz,
         jstring javaFilePath, jstring javaNativeLibPath,
-        jstring javaCpuAbi, jstring javaCpuAbi2, bool showNeon)
+        jstring javaCpuAbi, jstring javaCpuAbi2, jstring javaCpuAbi3, bool showNeon)
 {
     install_status_t ret;
 
@@ -403,28 +402,15 @@ com_android_internal_content_NativeLibraryHelper_copyNativeBinaries(JNIEnv *env,
                                  true, copyFileIfChanged,  &javaNativeLibPath);
     if (ret != INSTALL_FAILED_CPU_ABI_INCOMPATIBLE) return ret;
 
-#ifdef __mips__
-    /* javaCpuAbi  is Build.CPU_ABI: always "mips" */
-    /* javaCpuAbi2 is MCCpuAbi2: "armeabi", "armeabi-v7a", or empty */
-    /* Add implied MCCpuAbi3, complement of javaCpuAbi2 */
-    ScopedUtfChars cpuAbi2(env, javaCpuAbi2);
-    if (!strcmp(cpuAbi2.c_str(), "armeabi-v7a")) {
-        jstring cpuAbi3 = env->NewStringUTF("armeabi");
-        ret = iterateOverNativeFiles(env, javaFilePath, cpuAbi3, false,
-                                     true, copyFileIfChanged, &javaNativeLibPath);
-    } else if (!strcmp(cpuAbi2.c_str(), "armeabi")) {
-        jstring cpuAbi3 = env->NewStringUTF("armeabi-v7a");
-        ret = iterateOverNativeFiles(env, javaFilePath, cpuAbi3, showNeon,
-                                     true, copyFileIfChanged, &javaNativeLibPath);
-    }
-#endif
+    ret = iterateOverNativeFiles(env, javaFilePath, javaCpuAbi3, showNeon,
+                                 true, copyFileIfChanged, &javaNativeLibPath);
 
     return ret;
 }
 
 static jlong
 com_android_internal_content_NativeLibraryHelper_sumNativeBinaries(JNIEnv *env, jclass clazz,
-        jstring javaFilePath, jstring javaCpuAbi, jstring javaCpuAbi2)
+        jstring javaFilePath, jstring javaCpuAbi, jstring javaCpuAbi2, jstring javaCpuAbi3)
 {
     size_t maxSize = 0, sumSize;
     install_status_t ret;
@@ -442,32 +428,22 @@ com_android_internal_content_NativeLibraryHelper_sumNativeBinaries(JNIEnv *env, 
                                  false, sumFiles, &sumSize);
     if (maxSize < sumSize)  maxSize = sumSize;
 
-#ifdef __mips__
-    /* JavaCpuAbi  is Build.CPU_ABI:  always "mips" */
-    /* javaCpuAbi2 is Build.CPU_ABI2: always "armeabi-v7a" or empty, unmodified by prefs */
-    /* Add implied "armeabi" */
-    ScopedUtfChars cpuAbi2(env, javaCpuAbi2);
-    if (!strcmp(cpuAbi2.c_str(), "armeabi-v7a")) {
-        jstring cpuAbi3 = env->NewStringUTF("armeabi");
-        sumSize = 0;
-        ret = iterateOverNativeFiles(env, javaFilePath, cpuAbi3, false,
-                                     false, sumFiles, &sumSize);
-        if (maxSize < sumSize)  maxSize = sumSize;
-    }
-#endif
+    sumSize = 0;
+    ret = iterateOverNativeFiles(env, javaFilePath, javaCpuAbi3, false,
+                                 false, sumFiles, &sumSize);
+    if (maxSize < sumSize)  maxSize = sumSize;
 
     return maxSize;  /* loose upper bound on actual final size */
 }
 
 static JNINativeMethod gMethods[] = {
     {"nativeCopyNativeBinaries",
-            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)I",
-            (void *)com_android_internal_content_NativeLibraryHelper_copyNativeBinaries},
+     "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)I",
+     (void *)com_android_internal_content_NativeLibraryHelper_copyNativeBinaries},
     {"nativeSumNativeBinaries",
-            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)J",
-            (void *)com_android_internal_content_NativeLibraryHelper_sumNativeBinaries},
+     "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)J",
+     (void *)com_android_internal_content_NativeLibraryHelper_sumNativeBinaries},
 };
-
 
 int register_com_android_internal_content_NativeLibraryHelper(JNIEnv *env)
 {

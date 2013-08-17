@@ -51,10 +51,8 @@ public class NativeLibraryHelper {
     /** Unique name of application in Google Play market, version independent */
     private static String MCPackageName = "";
 
-    /** Per-app tuning of Build.CPU_ABI2.  The preferred native code ABI to unpack from apk when
-        the primary CPU_ABI is absent.  "armeabi" disables Armv7 libs, "mips" disables all Arm libs.
-     */
-    private static String MCCpuAbi2 = Build.CPU_ABI2;
+    /** Per-app tuning of Build.CPU_ABI, CPU_ABI2, ... */
+    private static String[] MCCpuAbi = {"", "", ""};
 
     /** Default for Arm apps, whether /proc/cpuinfo should encourage optional use of Neon instrs */
     public static final boolean MCShowNeonDefault = true;
@@ -71,14 +69,24 @@ public class NativeLibraryHelper {
     private static void lookupCustomizedAbi() {
 
         /* Defaults for when app is not named in the magiccode_prefs.xml file */
-        MCCpuAbi2 = Build.CPU_ABI2;
-        MCCpuAbi2 = "armeabi";   /* temp workaround, until libakim works well on more armv7 apps */
+        MCCpuAbi[0] = Build.CPU_ABI;
+        MCCpuAbi[1] = Build.CPU_ABI2;
+        MCCpuAbi[2] = "";
         MCShowNeon = MCShowNeonDefault;
-
-        if (MCPackageName.isEmpty() || !Build.CPU_ABI.equals("mips"))
+        if (!Build.CPU_ABI.equals("mips"))
             return;
 
-        Slog.d(TAG, "Customizing CpuAbi2 for " + MCPackageName);
+        MCCpuAbi[1] = "armeabi";  /* temp workaround, until libakim works well on more armv7 apps */
+
+        if (MCCpuAbi[1].equals("armeabi-v7a"))
+            MCCpuAbi[2] = "armeabi";
+        else if (MCCpuAbi[1].equals("armeabi"))
+            MCCpuAbi[2] = "armeabi-v7a";
+
+        if (MCPackageName.isEmpty())
+            return;
+
+        Slog.d(TAG, "Customizing CpuAbi for " + MCPackageName);
         try {
             InputStream in = new FileInputStream("/data/system/magiccode_prefs.xml");
             try {
@@ -90,14 +98,21 @@ public class NativeLibraryHelper {
                 while (eventType != XmlPullParser.END_DOCUMENT) {
                     if (eventType == XmlPullParser.START_TAG &&
                         xpp.getName().equals("apk")            ) {
-                        Slog.d(TAG, "prefs for "+xpp.getAttributeValue(0));  /* TODO: delete this */
+                        Slog.d(TAG, "prefs for "+xpp.getAttributeValue(0));
                         /* TODO: check field names instead of assuming positions */
                         if (xpp.getAttributeValue(0).equals(MCPackageName) ||
                             xpp.getAttributeValue(0).equals("*")             ) {
-                            MCCpuAbi2 = xpp.getAttributeValue(2);
+                            /* AttributeValue(1) version= is now ignored */
+                            MCCpuAbi[0] = xpp.getAttributeValue(2);  /* first=  */
+                            MCCpuAbi[1] = xpp.getAttributeValue(3);  /* second= */ 
+                            MCCpuAbi[2] = xpp.getAttributeValue(4);  /* third=  */
+                            /* features= */
                             MCShowNeon = xpp.getAttributeValue(5).indexOf("neon") != -1;
-                            Slog.d(TAG, "Customizing CpuAbi2 to " + MCCpuAbi2 +
-                                        ", neon " + MCShowNeon +
+                            Slog.d(TAG, "Customizing CpuAbi to " +
+                                         MCCpuAbi[0] + ", " +
+                                         MCCpuAbi[1] + ", " +
+                                         MCCpuAbi[2] + "; " +
+                                        "neon " + MCShowNeon +
                                         " for package " + MCPackageName);
                             break;
                         }
@@ -115,8 +130,8 @@ public class NativeLibraryHelper {
         }
     }
 
-    private static native long nativeSumNativeBinaries(String file, String cpuAbi, String cpuAbi2);
-
+    private static native long nativeSumNativeBinaries(String file, String cpuAbi,
+                                                       String cpuAbi2, String cpuAbi3);
     /**
      * Sums the size of native binaries in an APK.
      *
@@ -124,12 +139,13 @@ public class NativeLibraryHelper {
      * @return upper bound on size of native binary files for possible abi's, in bytes
      */
     public static long sumNativeBinariesLI(File apkFile) {
-        /* don't know packageName for looking up custom abi */
-        return nativeSumNativeBinaries(apkFile.getPath(), Build.CPU_ABI, Build.CPU_ABI2);
+        // get default abi1/2/3; don't know packageName for looking up custom abi
+        lookupCustomizedAbi();
+        return nativeSumNativeBinaries(apkFile.getPath(), MCCpuAbi[0], MCCpuAbi[1], MCCpuAbi[2]);
     }
 
     private native static int nativeCopyNativeBinaries(String filePath, String sharedLibraryPath,
-            String cpuAbi, String cpuAbi2, boolean showNeon);
+            String cpuAbi, String cpuAbi2, String cpuAbi3, boolean showNeon);
     /**
      * Copies native binaries to a shared library directory.
      *
@@ -141,7 +157,7 @@ public class NativeLibraryHelper {
     public static int copyNativeBinariesIfNeededLI(File apkFile, File sharedLibraryDir) {
         lookupCustomizedAbi();
         return nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
-                                        Build.CPU_ABI, MCCpuAbi2, MCShowNeon);
+                                        MCCpuAbi[0], MCCpuAbi[1], MCCpuAbi[2], MCShowNeon);
     }
 
     // Convenience method to call removeNativeBinariesFromDirLI(File)
