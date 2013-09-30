@@ -965,6 +965,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                     PackageManager.VERIFICATION_ALLOW,
                                     state.getInstallArgs().getUser());
                             try {
+                                // did customizeAbiByAppname() when this pending step was started
                                 ret = args.copyApk(mContainerService, true);
                             } catch (RemoteException e) {
                                 Slog.e(TAG, "Could not contact the ContainerService");
@@ -1004,6 +1005,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                             broadcastPackageVerified(verificationId, args.packageURI,
                                     response.code, state.getInstallArgs().getUser());
                             try {
+                                // did customizeAbiByAppname() when this pending step was started
                                 ret = args.copyApk(mContainerService, true);
                             } catch (RemoteException e) {
                                 Slog.e(TAG, "Could not contact the ContainerService");
@@ -4592,6 +4594,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 + path);
                     }
                 } else {
+                    NativeLibraryHelper.customizeAbiByAppname(pkg.packageName);
                     if (!isForwardLocked(pkg) && !isExternal(pkg)) {
                         /*
                          * Update native library dir if it starts with
@@ -7489,6 +7492,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                     userIdentifier = UserHandle.USER_OWNER;
                 }
 
+                NativeLibraryHelper.customizeAbiByAppname(pkgLite.packageName);
+
                 /*
                  * Determine if we have any installed package verifiers. If we
                  * do, then we'll defer to them to verify the packages.
@@ -8016,6 +8021,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                 nativeLibraryFile.delete();
             }
             try {
+                // did customizeAbiByAppname() before the step calling copyApk()
                 int copyRet = copyNativeLibrariesForInternalApp(codeFile, nativeLibraryFile);
                 if (copyRet != PackageManager.INSTALL_SUCCEEDED) {
                     return copyRet;
@@ -11388,6 +11394,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                     final File newNativeDir = new File(newNativePath);
 
                                     if (!isForwardLocked(pkg) && !isExternal(pkg)) {
+                                        NativeLibraryHelper.customizeAbiByAppname(pkg.packageName);
                                         NativeLibraryHelper.copyNativeBinariesIfNeededLI(
                                                 new File(newCodePath), newNativeDir);
                                     }
