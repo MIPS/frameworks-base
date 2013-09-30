@@ -35,6 +35,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.io.File;
 import java.util.ArrayList;
 
 import libcore.io.ErrnoException;
@@ -218,6 +219,18 @@ class ZygoteConnection {
                 childPipeFd = pipeFds[1];
                 serverPipeFd = pipeFds[0];
                 ZygoteInit.setCloseOnExec(serverPipeFd, true);
+            }
+
+            /*
+             * change for magic_cpu
+             * dalvik_system_Zygote.cpp defines MC_IS_ARM_CPU_INFO as
+             * (Zygote.DEBUG_ENABLE_DEBUGGER << 5)
+             */
+            if ((parsedArgs.niceName != null) &&
+                (new File("/data/data/" + parsedArgs.niceName + "/lib/.MC_arm").exists())) {
+                parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_DEBUGGER << 5);
+                if (new File("/data/data/" + parsedArgs.niceName + "/lib/.Neon").exists())
+                    parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_DEBUGGER << 6);
             }
 
             pid = Zygote.forkAndSpecialize(parsedArgs.uid, parsedArgs.gid, parsedArgs.gids,
