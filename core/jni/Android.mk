@@ -207,10 +207,15 @@ LOCAL_SHARED_LIBRARIES := \
 	libicui18n \
 	libmedia \
 	libwpa_client \
-	libjpeg \
 	libusbhost \
 	libharfbuzz_ng \
 	libz
+
+ifeq ($(USE_GMS_LIBS),true)
+	LOCAL_SHARED_LIBRARIES += libjpeg_old
+else
+	LOCAL_SHARED_LIBRARIES += libjpeg
+endif
 
 ifeq ($(USE_OPENGL_RENDERER),true)
 	LOCAL_SHARED_LIBRARIES += libhwui

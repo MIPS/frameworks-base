@@ -29,8 +29,13 @@ LOCAL_SHARED_LIBRARIES := \
     libstagefright_foundation \
     libbinder \
     libutils \
-    liblog \
-    libjpeg
+    liblog
+
+ifeq ($(USE_GMS_LIBS),true)
+	LOCAL_SHARED_LIBRARIES += libjpeg_old
+else
+	LOCAL_SHARED_LIBRARIES += libjpeg
+endif
 
 LOCAL_C_INCLUDES := \
     $(TOP)/external/jpeg \
