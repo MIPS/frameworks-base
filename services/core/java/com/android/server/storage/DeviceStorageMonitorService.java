@@ -342,11 +342,11 @@ public class DeviceStorageMonitorService extends SystemService {
 
     private static boolean isBootImageOnDisk() {
         for (String instructionSet : PackageManagerService.getAllDexCodeInstructionSets()) {
-            if (!VMRuntime.isBootClassPathOnDisk(instructionSet)) {
-                return false;
+            if (VMRuntime.isBootClassPathOnDisk(instructionSet)) {
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     /**
