@@ -497,6 +497,26 @@ public final class LoadedApk {
             return mApplication;
         }
 
+        //MC_AKIM:
+        for (int i = 1; i <= 2; i++) {
+            if (new File(String.format("/data/app-lib/%s-%d/.MC_arm", mPackageName, i)).exists()) {
+                //use reflect to implement android.os.Build.CPU_ABI = android.os.Build.CPU_ABI2;
+                try {
+                    java.lang.reflect.Field fvalue = String.class.getDeclaredField("value");
+                    fvalue.setAccessible(true);
+                    fvalue.set(android.os.Build.CPU_ABI, android.os.Build.CPU_ABI2.toCharArray());
+                    java.lang.reflect.Field fcount = String.class.getDeclaredField("count");
+                    fcount.setAccessible(true);
+                    fcount.setInt(android.os.Build.CPU_ABI, android.os.Build.CPU_ABI2.length());
+                } catch (Exception e) {
+                    Slog.w("FOR_AKIM", e.toString());
+                }
+
+                System.getProperties().put("os.arch", android.os.Build.CPU_ABI2);
+                break;
+            }
+        }
+
         Application app = null;
 
         String appClass = mApplicationInfo.className;
