@@ -4871,6 +4871,9 @@ public class PackageManagerService extends IPackageManager.Stub {
                 continue;
             }
 
+            if (!dexCodeInstructionSet.startsWith("mips")) {
+                continue;
+            }
             for (String path : paths) {
                 try {
                     // This will return DEXOPT_NEEDED if we either cannot find any odex file for this
@@ -5950,7 +5953,10 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         if ((scanFlags & SCAN_NO_DEX) == 0) {
-            if (performDexOptLI(pkg, null /* instruction sets */, forceDex,
+
+            String[] targetInstructionSets = new String[] { VMRuntime.getInstructionSet("mips") };
+
+            if (performDexOptLI(pkg, targetInstructionSets, forceDex,
                     (scanFlags & SCAN_DEFER_DEX) != 0, false) == DEX_OPT_FAILED) {
                 throw new PackageManagerException(INSTALL_FAILED_DEXOPT, "scanPackageLI");
             }
