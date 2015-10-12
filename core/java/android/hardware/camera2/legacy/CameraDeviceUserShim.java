@@ -43,6 +43,9 @@ import android.view.Surface;
 import java.util.ArrayList;
 import java.util.List;
 
+import static android.system.OsConstants.EACCES;
+import static android.system.OsConstants.ENODEV;
+
 /**
  * Compatibility implementation of the Camera2 API binder interface.
  *
@@ -382,7 +385,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot submit request, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         synchronized(mConfigureLock) {
@@ -402,7 +405,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot submit request list, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         synchronized(mConfigureLock) {
@@ -421,7 +424,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot cancel request, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         synchronized(mConfigureLock) {
@@ -442,7 +445,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot begin configure, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         synchronized(mConfigureLock) {
@@ -462,7 +465,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot end configure, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         ArrayList<Surface> surfaces = null;
@@ -490,7 +493,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot delete stream, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         synchronized(mConfigureLock) {
@@ -515,7 +518,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot create stream, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         synchronized(mConfigureLock) {
@@ -552,7 +555,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot create default request, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         CameraMetadataNative template;
@@ -585,7 +588,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot wait until idle, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         synchronized(mConfigureLock) {
@@ -605,7 +608,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot flush, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         synchronized(mConfigureLock) {
@@ -627,7 +630,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot prepare stream, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         // LEGACY doesn't support actual prepare, just signal success right away
@@ -642,7 +645,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
         }
         if (mLegacyDevice.isClosed()) {
             Log.e(TAG, "Cannot tear down stream, device has been closed.");
-            return CameraBinderDecorator.ENODEV;
+            return -ENODEV;
         }
 
         // LEGACY doesn't support actual teardown, so just a no-op
