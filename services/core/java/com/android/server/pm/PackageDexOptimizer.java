@@ -20,6 +20,7 @@ import android.annotation.Nullable;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageParser;
+import android.os.Build;
 import android.os.Environment;
 import android.os.PowerManager;
 import android.os.UserHandle;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.util.List;
 
 import dalvik.system.DexFile;
+import dalvik.system.VMRuntime;
 
 import static com.android.server.pm.Installer.DEXOPT_BOOTCOMPLETE;
 import static com.android.server.pm.Installer.DEXOPT_DEBUGGABLE;
@@ -92,6 +94,11 @@ class PackageDexOptimizer {
     int performDexOpt(PackageParser.Package pkg, String[] sharedLibraries,
             String[] instructionSets, boolean checkProfiles, String targetCompilationFilter,
             CompilerStats.PackageStats packageStats) {
+        String[] targetInstructionSets = instructionSets;
+        if (Build.CPU_ABI.equals("mips")) {
+            targetInstructionSets = new String[] { VMRuntime.getInstructionSet("mips") };
+        }
+
         synchronized (mInstallLock) {
             final boolean useLock = mSystemReady;
             if (useLock) {
@@ -99,7 +106,7 @@ class PackageDexOptimizer {
                 mDexoptWakeLock.acquire();
             }
             try {
-                return performDexOptLI(pkg, sharedLibraries, instructionSets, checkProfiles,
+                return performDexOptLI(pkg, sharedLibraries, targetInstructionSets, checkProfiles,
                         targetCompilationFilter, packageStats);
             } finally {
                 if (useLock) {
@@ -195,6 +202,10 @@ class PackageDexOptimizer {
 
         final String[] dexCodeInstructionSets = getDexCodeInstructionSets(instructionSets);
         for (String dexCodeInstructionSet : dexCodeInstructionSets) {
+            if (Build.CPU_ABI.equals("mips") && !dexCodeInstructionSet.startsWith("mips")) {
+                continue;
+            }
+
             for (String path : paths) {
                 int dexoptNeeded;
                 try {
