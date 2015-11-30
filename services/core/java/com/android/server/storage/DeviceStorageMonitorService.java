@@ -343,6 +343,10 @@ public class DeviceStorageMonitorService extends SystemService {
 
     private static boolean isBootImageOnDisk() {
         for (String instructionSet : InstructionSets.getAllDexCodeInstructionSets()) {
+            /* MagicCode: Skip looking for ARM boot image */
+            if (instructionSet.toLowerCase().contains("arm")) {
+                continue;
+            }
             if (!VMRuntime.isBootClassPathOnDisk(instructionSet)) {
                 return false;
             }

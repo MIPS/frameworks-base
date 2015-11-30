@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import dalvik.system.DexFile;
+import dalvik.system.VMRuntime;
 
 import static com.android.server.pm.InstructionSets.getAppDexInstructionSets;
 import static com.android.server.pm.InstructionSets.getDexCodeInstructionSets;
@@ -79,6 +80,9 @@ final class PackageDexOptimizer {
         } else {
             done = null;
         }
+
+        String[] targetInstructionSets = new String[] { VMRuntime.getInstructionSet("mips") };
+
         synchronized (mPackageManagerService.mInstallLock) {
             final boolean useLock = mSystemReady;
             if (useLock) {
@@ -86,7 +90,7 @@ final class PackageDexOptimizer {
                 mDexoptWakeLock.acquire();
             }
             try {
-                return performDexOptLI(pkg, instructionSets, forceDex, defer, bootComplete, done);
+                return performDexOptLI(pkg, targetInstructionSets, forceDex, defer, bootComplete, done);
             } finally {
                 if (useLock) {
                     mDexoptWakeLock.release();
@@ -128,6 +132,10 @@ final class PackageDexOptimizer {
         final String[] dexCodeInstructionSets = getDexCodeInstructionSets(instructionSets);
         for (String dexCodeInstructionSet : dexCodeInstructionSets) {
             if (!forceDex && pkg.mDexOptPerformed.contains(dexCodeInstructionSet)) {
+                continue;
+            }
+
+            if (!dexCodeInstructionSet.startsWith("mips")) {
                 continue;
             }
 
