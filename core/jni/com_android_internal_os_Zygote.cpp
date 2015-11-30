@@ -457,6 +457,35 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
     // Clean up any descriptors which must be closed immediately
     DetachDescriptors(env, fdsToClose);
 
+#define DEBUG_ENABLE_DEBUGGER 1
+#define MC_IS_ARM_CPU_INFO      (DEBUG_ENABLE_DEBUGGER << 7)
+#define MC_IS_ARM_CPU_INFO_NEON (DEBUG_ENABLE_DEBUGGER << 8)
+
+#ifdef __mips__
+        ALOGI("Checking debug flags for MC flags...");
+        /* tell kernel what /proc/cpuinfo should show to this process */
+        int fd = open("/proc/magic", O_WRONLY);
+        if (fd >= 0) {
+            if (debug_flags & MC_IS_ARM_CPU_INFO_NEON) {
+                ALOGI("Setting /proc/magic to arm_neon");
+                write(fd, "arm_neon", 8);
+            } else if (debug_flags & MC_IS_ARM_CPU_INFO) {
+                ALOGI("Setting /proc/magic to arm");
+                write(fd, "arm", 3);
+            } else {
+                ALOGI("Setting /proc/magic to mips");
+                write(fd, "mips", 4);
+            }
+            close(fd);
+        } else {
+            ALOGW("Kernel does not support /proc/magic and per-process /proc/cpuinfo");
+        }
+
+        /* clear MC flags so art does not complain */
+        debug_flags &= ~MC_IS_ARM_CPU_INFO;
+        debug_flags &= ~MC_IS_ARM_CPU_INFO_NEON;
+#endif
+
     // Keep capabilities across UID change, unless we're staying root.
     if (uid != 0) {
       EnableKeepCapabilities(env);
