@@ -20,6 +20,7 @@ import android.annotation.Nullable;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageParser;
+import android.os.Build;
 import android.os.PowerManager;
 import android.os.UserHandle;
 import android.os.WorkSource;
@@ -81,7 +82,10 @@ final class PackageDexOptimizer {
             done = null;
         }
 
-        String[] targetInstructionSets = new String[] { VMRuntime.getInstructionSet("mips") };
+        String[] targetInstructionSets = instructionSets;
+        if (Build.CPU_ABI.equals("mips")) {
+            targetInstructionSets = new String[] { VMRuntime.getInstructionSet("mips") };
+        }
 
         synchronized (mPackageManagerService.mInstallLock) {
             final boolean useLock = mSystemReady;
@@ -135,8 +139,8 @@ final class PackageDexOptimizer {
                 continue;
             }
 
-            if (!dexCodeInstructionSet.startsWith("mips")) {
-                continue;
+            if (Build.CPU_ABI.equals("mips") && !dexCodeInstructionSet.startsWith("mips")) {
+                    continue;
             }
 
             for (String path : paths) {

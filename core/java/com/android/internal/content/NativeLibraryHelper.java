@@ -191,18 +191,24 @@ public class NativeLibraryHelper {
     private static void lookupCustomizedAbi(String packageName, String[] abiList) {
 
         /* Defaults for when app is not named in the magiccode_prefs.xml file */
-        MCCpuAbi = Arrays.copyOf(abiList, 3);
+        MCCpuAbi = abiList;
         MCShowNeon = MCShowNeonDefault;
+
         if (!Build.CPU_ABI.equals("mips"))
             return;
 
         if (packageName.isEmpty())
             return;
 
-        Slog.i(TAG, "Customizing CpuAbi for " + packageName);
+        // do not interfere if abi is already overridden
+        if(abiList != Build.SUPPORTED_ABIS &&
+           abiList != Build.SUPPORTED_32_BIT_ABIS)
+            return;
+
         try {
             InputStream in = new FileInputStream("/data/system/magiccode_prefs.xml");
             try {
+                Slog.i(TAG, "Customizing CpuAbi for " + packageName);
                 XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
                 factory.setNamespaceAware(true);
                 XmlPullParser xpp = factory.newPullParser();
@@ -215,6 +221,7 @@ public class NativeLibraryHelper {
                         /* TODO: check field names instead of assuming positions */
                         if (xpp.getAttributeValue(0).equals(packageName) ||
                             xpp.getAttributeValue(0).equals("*")             ) {
+                            MCCpuAbi = Arrays.copyOf(abiList, 3);
                             /* AttributeValue(1) version= is now ignored */
                             MCCpuAbi[0] = xpp.getAttributeValue(2);  /* first=  */
                             MCCpuAbi[1] = xpp.getAttributeValue(3);  /* second= */
@@ -239,8 +246,7 @@ public class NativeLibraryHelper {
             }
             in.close();
         } catch (IOException e) {
-            // magiccode prefs file was not found, use original abiList
-            MCCpuAbi = abiList;
+            // magiccode prefs file was not found, using original abiList
         }
     }
 
@@ -421,7 +427,7 @@ public class NativeLibraryHelper {
          */
         int abi = findSupportedAbi(handle, abiList);
         if (abi >= 0) {
-            if(abiList[abi].startsWith("arm")) {
+            if (abiList[abi].startsWith("arm") && Build.CPU_ABI.equals("mips")) {
                 /* We are copying files, and there are native libs for goal armv5/armv7 abi */
                 /* Create the installed program's marker files that guide whether /proc/cpuinfo
                    will show {mips, armv5, armv7 w/o Neon, or armv7 with Neon} for that program. */

@@ -24,6 +24,7 @@ import static android.system.OsConstants.STDOUT_FILENO;
 
 import android.net.Credentials;
 import android.net.LocalSocket;
+import android.os.Build;
 import android.os.Process;
 import android.os.SELinux;
 import android.os.SystemProperties;
@@ -200,19 +201,21 @@ class ZygoteConnection {
              * dalvik_system_Zygote.cpp defines MC_IS_ARM_CPU_INFO as
              * (Zygote.DEBUG_ENABLE_DEBUGGER << 7)
              */
-            try {
-                /* App's lib dir is a symlink to abi dir, so we need to resolve it */
-                File libAbiDir = new File(parsedArgs.appDataDir + "/lib");
-                File libDir = new File(libAbiDir.getCanonicalPath()).getParentFile();
+            if (Build.CPU_ABI.equals("mips")) {
+                try {
+                    /* App's lib dir is a symlink to abi dir, so we need to resolve it */
+                    File libAbiDir = new File(parsedArgs.appDataDir + "/lib");
+                    File libDir = new File(libAbiDir.getCanonicalPath()).getParentFile();
 
-                if (new File(libDir.getPath() + "/.MC_arm").exists()) {
-                    parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_DEBUGGER << 7);
-                    if (new File(libDir.getPath() + "/.Neon").exists()) {
-                        parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_DEBUGGER << 8);
+                    if (new File(libDir.getPath() + "/.MC_arm").exists()) {
+                        parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_DEBUGGER << 7);
+                        if (new File(libDir.getPath() + "/.Neon").exists()) {
+                            parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_DEBUGGER << 8);
+                        }
                     }
+                } catch (IOException e) {
+                    Log.e(TAG, "Got exception trying to check MC flags: ", e);
                 }
-            } catch (IOException e) {
-                Log.e(TAG, "Got exception trying to check MC flags: ", e);
             }
 
             /**
