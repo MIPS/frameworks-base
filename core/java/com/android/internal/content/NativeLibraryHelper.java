@@ -206,7 +206,17 @@ public class NativeLibraryHelper {
             return;
 
         try {
-            InputStream in = new FileInputStream("/data/system/magiccode_prefs.xml");
+            // look in /data/system override first
+            File magicCodePrefs = new File("/data/system/magiccode_prefs.xml");
+            try {
+                if(!magicCodePrefs.isFile()) {
+                    // fallback to default
+                    magicCodePrefs = new File("/system/etc/magiccode_prefs.xml");
+                }
+            } catch (Exception e) {
+            }
+            InputStream in = new FileInputStream(magicCodePrefs);
+            Slog.d(TAG, "Using MC prefs file: " + magicCodePrefs.getPath());
             try {
                 Slog.i(TAG, "Customizing CpuAbi for " + packageName);
                 XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
@@ -217,7 +227,7 @@ public class NativeLibraryHelper {
                 while (eventType != XmlPullParser.END_DOCUMENT) {
                     if (eventType == XmlPullParser.START_TAG &&
                         xpp.getName().equals("apk")            ) {
-                        Slog.d(TAG, "prefs for "+xpp.getAttributeValue(0));
+                        Slog.v(TAG, "prefs for "+xpp.getAttributeValue(0));
                         /* TODO: check field names instead of assuming positions */
                         if (xpp.getAttributeValue(0).equals(packageName) ||
                             xpp.getAttributeValue(0).equals("*")             ) {
@@ -240,13 +250,14 @@ public class NativeLibraryHelper {
                     eventType = xpp.next();
                 }
             } catch (IOException e) {
-                Slog.e(TAG, "Mangled magiccode_prefs.xml file", e);
+                Slog.e(TAG, "Mangled MC prefs: " + magicCodePrefs.getPath(), e);
             } catch (XmlPullParserException e) {
-                Slog.e(TAG, "Mangled magiccode_prefs.xml file", e);
+                Slog.e(TAG, "Mangled MC prefs: " + magicCodePrefs.getPath(), e);
             }
             in.close();
         } catch (IOException e) {
             // magiccode prefs file was not found, using original abiList
+            Slog.d(TAG, "Missing MC prefs file, using default abiList.");
         }
     }
 
