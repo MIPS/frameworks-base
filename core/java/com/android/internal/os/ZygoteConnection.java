@@ -28,6 +28,7 @@ import static com.android.internal.os.ZygoteConnectionConstants.WRAPPED_PID_TIME
 
 import android.net.Credentials;
 import android.net.LocalSocket;
+import android.os.Build;
 import android.os.FactoryTest;
 import android.os.Process;
 import android.os.SystemProperties;
@@ -42,6 +43,7 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
+import java.io.File;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -188,6 +190,28 @@ class ZygoteConnection {
                 fdsToIgnore = new int[]{childPipeFd.getInt$(), serverPipeFd.getInt$()};
             } catch (ErrnoException errnoEx) {
                 throw new IllegalStateException("Unable to set up pipe for invoke-with", errnoEx);
+            }
+        }
+
+        /*
+         * change for magic_cpu
+         * dalvik_system_Zygote.cpp defines MC_IS_ARM_CPU_INFO as
+         * (Zygote.DEBUG_ENABLE_JDWP << 7)
+         */
+        if (Build.CPU_ABI.equals("mips")) {
+            try {
+                /* App's lib dir is a symlink to abi dir, so we need to resolve it */
+                File libAbiDir = new File(parsedArgs.appDataDir + "/lib");
+                File libDir = new File(libAbiDir.getCanonicalPath()).getParentFile();
+
+                if (new File(libDir.getPath() + "/.MC_arm").exists()) {
+                    parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_JDWP << 7);
+                    if (new File(libDir.getPath() + "/.Neon").exists()) {
+                        parsedArgs.debugFlags |= (Zygote.DEBUG_ENABLE_JDWP << 8);
+                    }
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Got exception trying to check MC flags: ", e);
             }
         }
 
