@@ -43,8 +43,16 @@ import dalvik.system.VMRuntime;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
+import java.util.Arrays;
+
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlPullParserFactory;
 
 /**
  * Native libraries helper.
@@ -73,6 +81,7 @@ public class NativeLibraryHelper {
         private final CloseGuard mGuard = CloseGuard.get();
         private volatile boolean mClosed;
 
+        final String packageName;
         final long[] apkHandles;
         final boolean multiArch;
         final boolean extractNativeLibs;
@@ -91,16 +100,17 @@ public class NativeLibraryHelper {
             return create(pkg.getAllCodePaths(),
                     (pkg.applicationInfo.flags & ApplicationInfo.FLAG_MULTIARCH) != 0,
                     (pkg.applicationInfo.flags & ApplicationInfo.FLAG_EXTRACT_NATIVE_LIBS) != 0,
-                    (pkg.applicationInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
+                    (pkg.applicationInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0,
+                    pkg.packageName);
         }
 
         public static Handle create(PackageLite lite) throws IOException {
             return create(lite.getAllCodePaths(), lite.multiArch, lite.extractNativeLibs,
-                    lite.debuggable);
+                    lite.debuggable, lite.packageName);
         }
 
         private static Handle create(List<String> codePaths, boolean multiArch,
-                boolean extractNativeLibs, boolean debuggable) throws IOException {
+                boolean extractNativeLibs, boolean debuggable, String packageName) throws IOException {
             final int size = codePaths.size();
             final long[] apkHandles = new long[size];
             for (int i = 0; i < size; i++) {
@@ -115,15 +125,16 @@ public class NativeLibraryHelper {
                 }
             }
 
-            return new Handle(apkHandles, multiArch, extractNativeLibs, debuggable);
+            return new Handle(apkHandles, multiArch, extractNativeLibs, debuggable, packageName);
         }
 
         Handle(long[] apkHandles, boolean multiArch, boolean extractNativeLibs,
-                boolean debuggable) {
+                boolean debuggable, String packageName) {
             this.apkHandles = apkHandles;
             this.multiArch = multiArch;
             this.extractNativeLibs = extractNativeLibs;
             this.debuggable = debuggable;
+            this.packageName = packageName;
             mGuard.open("close");
         }
 
@@ -161,6 +172,98 @@ public class NativeLibraryHelper {
             String abiToCopy, boolean extractNativeLibs, boolean hasNativeBridge,
             boolean debuggable);
 
+    /** Per-application MagicCode hints for emulating Arm code on MIPS: */
+
+    /** These are static global vars rather than passed-through args, because
+        - Most of the direct callers deal only with filenames, not package class objects.
+        - The filenames are sometimes random temp names without package names.
+        - The upper layer knowing about package names is sometimes in some asynchronous thread.
+     */
+
+    /** Per-app tuning of Build.CPU_ABI, CPU_ABI2, ... */
+    private static String[] MCCpuAbi;
+
+    /** Default for Arm apps, whether /proc/cpuinfo should encourage optional use of Neon instrs */
+    public static final boolean MCShowNeonDefault = true;
+
+    /** Per-app tuning of whether /proc/cpuinfo should encourage optional use of Neon instrs */
+    private static boolean MCShowNeon;
+
+
+    /** Lookup per-application hints for how to emulate Arm native code on MIPS */
+    private static void lookupCustomizedAbi(String packageName, String[] abiList) {
+
+        /* Defaults for when app is not named in the magiccode_prefs.xml file */
+        MCCpuAbi = abiList;
+        MCShowNeon = MCShowNeonDefault;
+
+        if (!Build.CPU_ABI.equals("mips"))
+            return;
+
+        if (packageName.isEmpty())
+            return;
+
+        // do not interfere if abi is already overridden
+        if(abiList != Build.SUPPORTED_ABIS &&
+           abiList != Build.SUPPORTED_32_BIT_ABIS)
+            return;
+
+        try {
+            // look in /data/system override first
+            File magicCodePrefs = new File("/data/system/magiccode_prefs.xml");
+            try {
+                if(!magicCodePrefs.isFile()) {
+                    // fallback to default
+                    magicCodePrefs = new File("/system/etc/magiccode_prefs.xml");
+                }
+            } catch (Exception e) {
+            }
+            InputStream in = new FileInputStream(magicCodePrefs);
+            Slog.d(TAG, "Using MC prefs file: " + magicCodePrefs.getPath());
+            try {
+                Slog.i(TAG, "Customizing CpuAbi for " + packageName);
+                XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
+                factory.setNamespaceAware(true);
+                XmlPullParser xpp = factory.newPullParser();
+                xpp.setInput(in, "UTF-8");
+                int eventType = xpp.getEventType();
+                while (eventType != XmlPullParser.END_DOCUMENT) {
+                    if (eventType == XmlPullParser.START_TAG &&
+                        xpp.getName().equals("apk")            ) {
+                        Slog.v(TAG, "prefs for "+xpp.getAttributeValue(0));
+                        /* TODO: check field names instead of assuming positions */
+                        if (xpp.getAttributeValue(0).equals(packageName) ||
+                            xpp.getAttributeValue(0).equals("*")             ) {
+                            MCCpuAbi = Arrays.copyOf(abiList, 3);
+                            /* AttributeValue(1) version= is now ignored */
+                            MCCpuAbi[0] = xpp.getAttributeValue(2);  /* first=  */
+                            MCCpuAbi[1] = xpp.getAttributeValue(3);  /* second= */
+                            MCCpuAbi[2] = xpp.getAttributeValue(4);  /* third=  */
+                            /* features= */
+                            MCShowNeon = xpp.getAttributeValue(5).indexOf("neon") != -1;
+                            Slog.i(TAG, "Customizing CpuAbi to " +
+                                         MCCpuAbi[0] + ", " +
+                                         MCCpuAbi[1] + ", " +
+                                         MCCpuAbi[2] + "; " +
+                                        "neon " + MCShowNeon +
+                                        " for package " + packageName);
+                            break;
+                        }
+                    }
+                    eventType = xpp.next();
+                }
+            } catch (IOException e) {
+                Slog.e(TAG, "Mangled MC prefs: " + magicCodePrefs.getPath(), e);
+            } catch (XmlPullParserException e) {
+                Slog.e(TAG, "Mangled MC prefs: " + magicCodePrefs.getPath(), e);
+            }
+            in.close();
+        } catch (IOException e) {
+            // magiccode prefs file was not found, using original abiList
+            Slog.d(TAG, "Missing MC prefs file, using default abiList.");
+        }
+    }
+
     private static long sumNativeBinaries(Handle handle, String abi) {
         long sum = 0;
         for (long apkHandle : handle.apkHandles) {
@@ -197,8 +300,10 @@ public class NativeLibraryHelper {
      */
     public static int findSupportedAbi(Handle handle, String[] supportedAbis) {
         int finalRes = NO_NATIVE_LIBRARIES;
+        // Override ABI if needed
+        lookupCustomizedAbi(handle.packageName, supportedAbis);
         for (long apkHandle : handle.apkHandles) {
-            final int res = nativeFindSupportedAbi(apkHandle, supportedAbis, handle.debuggable);
+            final int res = nativeFindSupportedAbi(apkHandle, MCCpuAbi, handle.debuggable);
             if (res == NO_NATIVE_LIBRARIES) {
                 // No native code, keep looking through all APKs.
             } else if (res == INSTALL_FAILED_NO_MATCHING_ABIS) {
@@ -209,8 +314,21 @@ public class NativeLibraryHelper {
                 }
             } else if (res >= 0) {
                 // Found valid native code, track the best ABI match
-                if (finalRes < 0 || res < finalRes) {
-                    finalRes = res;
+                // Convert result from MCCpuAbi to supportedAbis index
+                int actualRes = -1;
+                for(int i = 0; i < supportedAbis.length; i++) {
+                    if(supportedAbis[i].equals(MCCpuAbi[res])) {
+                        actualRes = i;
+                        break;
+                    }
+                }
+
+                if(actualRes == -1) {
+                    Slog.e(TAG, "Invalid ABI from magiccode_prefs.xml: " + MCCpuAbi[res] + "!");
+                    return INSTALL_FAILED_NO_MATCHING_ABIS;
+                }
+                if (finalRes < 0 || actualRes < finalRes) {
+                    finalRes = actualRes;
                 }
             } else {
                 // Unexpected error; bail
@@ -297,6 +415,21 @@ public class NativeLibraryHelper {
         }
     }
 
+    private static void createFlagFile(File libraryRoot, String filename) throws IOException {
+        Slog.i(TAG, "Creating flag file = " + libraryRoot.getPath() + "/arm/" + filename);
+        File flagFile = new File(libraryRoot, filename);
+        if(!flagFile.exists()) {
+            flagFile.createNewFile();
+            try {
+                Os.chmod(flagFile.getPath(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+            } catch (ErrnoException e) {
+                        Slog.e(TAG, "Error creating flag file = " + libraryRoot.getPath() + "/" + filename);
+
+                throw new IOException("Cannot chmod flag file " + flagFile.getPath(), e);
+            }
+        }
+    }
+
     public static int copyNativeBinariesForSupportedAbi(Handle handle, File libraryRoot,
             String[] abiList, boolean useIsaSubdir) throws IOException {
         createNativeLibrarySubdir(libraryRoot);
@@ -307,6 +440,19 @@ public class NativeLibraryHelper {
          */
         int abi = findSupportedAbi(handle, abiList);
         if (abi >= 0) {
+            if (abiList[abi].startsWith("arm") && Build.CPU_ABI.equals("mips")) {
+                /* We are copying files, and there are native libs for goal armv5/armv7 abi */
+                /* Create the installed program's marker files that guide whether /proc/cpuinfo
+                   will show {mips, armv5, armv7 w/o Neon, or armv7 with Neon} for that program. */
+                /* When program is launched, these marker files set corresponding bits in
+                   thread_struct, which then cause writing of /proc/magic files,
+                   which then cause kernel to modify its response to reads of /proc/cpuinfo. */
+                createFlagFile(libraryRoot, ".MC_arm");
+                if(MCShowNeon) {
+                    createFlagFile(libraryRoot, ".Neon");
+                }
+            }
+
             /*
              * If we have a matching instruction set, construct a subdir under the native
              * library root that corresponds to this instruction set.

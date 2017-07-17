@@ -21,6 +21,7 @@ import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageParser;
+import android.os.Build;
 import android.os.Environment;
 import android.os.FileUtils;
 import android.os.PowerManager;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Set;
 
 import dalvik.system.DexFile;
+import dalvik.system.VMRuntime;
 
 import static com.android.server.pm.Installer.DEXOPT_BOOTCOMPLETE;
 import static com.android.server.pm.Installer.DEXOPT_DEBUGGABLE;
@@ -114,13 +116,18 @@ public class PackageDexOptimizer {
     int performDexOpt(PackageParser.Package pkg, String[] sharedLibraries,
             String[] instructionSets, boolean checkProfiles, String targetCompilationFilter,
             CompilerStats.PackageStats packageStats, boolean isUsedByOtherApps) {
+        String[] targetInstructionSets = instructionSets;
+        if (Build.CPU_ABI.equals("mips")) {
+            targetInstructionSets = new String[] { VMRuntime.getInstructionSet("mips") };
+        }
+
         if (!canOptimizePackage(pkg)) {
             return DEX_OPT_SKIPPED;
         }
         synchronized (mInstallLock) {
             final long acquireTime = acquireWakeLockLI(pkg.applicationInfo.uid);
             try {
-                return performDexOptLI(pkg, sharedLibraries, instructionSets, checkProfiles,
+                return performDexOptLI(pkg, sharedLibraries, targetInstructionSets, checkProfiles,
                         targetCompilationFilter, packageStats, isUsedByOtherApps);
             } finally {
                 releaseWakeLockLI(acquireTime);
@@ -172,6 +179,9 @@ public class PackageDexOptimizer {
                         splitDependencies[i] != null ? splitDependencies[i] : sharedLibrariesPath;
             }
             for (String dexCodeIsa : dexCodeInstructionSets) {
+                if (Build.CPU_ABI.equals("mips") && !dexCodeIsa.startsWith("mips")) {
+                    continue;
+                }
                 int newResult = dexOptPath(pkg, path, dexCodeIsa, compilerFilter, profileUpdated,
                         sharedLibrariesPathWithSplits, dexoptFlags, sharedGid, packageStats);
                 // The end result is:
