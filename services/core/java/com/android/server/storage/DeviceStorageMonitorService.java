@@ -26,6 +26,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.TrafficStats;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Environment;
 import android.os.FileObserver;
 import android.os.Handler;
@@ -263,6 +264,10 @@ public class DeviceStorageMonitorService extends SystemService {
 
     private static boolean isBootImageOnDisk() {
         for (String instructionSet : InstructionSets.getAllDexCodeInstructionSets()) {
+            /* MagicCode: Skip looking for ARM boot image */
+            if (Build.CPU_ABI.equals("mips") && instructionSet.toLowerCase().contains("arm")) {
+                continue;
+            }
             if (!VMRuntime.isBootClassPathOnDisk(instructionSet)) {
                 return false;
             }

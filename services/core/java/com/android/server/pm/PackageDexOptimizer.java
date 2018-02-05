@@ -20,6 +20,7 @@ import android.annotation.Nullable;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageParser;
+import android.os.Build;
 import android.os.FileUtils;
 import android.os.PowerManager;
 import android.os.SystemClock;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 import dalvik.system.DexFile;
+import dalvik.system.VMRuntime;
 
 import static com.android.server.pm.Installer.DEXOPT_BOOTCOMPLETE;
 import static com.android.server.pm.Installer.DEXOPT_DEBUGGABLE;
@@ -116,13 +118,18 @@ public class PackageDexOptimizer {
     int performDexOpt(PackageParser.Package pkg, String[] sharedLibraries,
             String[] instructionSets, CompilerStats.PackageStats packageStats,
             PackageDexUsage.PackageUseInfo packageUseInfo, DexoptOptions options) {
+        String[] targetInstructionSets = instructionSets;
+        if (Build.CPU_ABI.equals("mips")) {
+            targetInstructionSets = new String[] { VMRuntime.getInstructionSet("mips") };
+        }
+
         if (!canOptimizePackage(pkg)) {
             return DEX_OPT_SKIPPED;
         }
         synchronized (mInstallLock) {
             final long acquireTime = acquireWakeLockLI(pkg.applicationInfo.uid);
             try {
-                return performDexOptLI(pkg, sharedLibraries, instructionSets,
+                return performDexOptLI(pkg, sharedLibraries, targetInstructionSets,
                         packageStats, packageUseInfo, options);
             } finally {
                 releaseWakeLockLI(acquireTime);
@@ -200,6 +207,9 @@ public class PackageDexOptimizer {
             final int dexoptFlags = getDexFlags(pkg, compilerFilter, options.isBootComplete());
 
             for (String dexCodeIsa : dexCodeInstructionSets) {
+                if (Build.CPU_ABI.equals("mips") && !dexCodeIsa.startsWith("mips")) {
+                    continue;
+                }
                 int newResult = dexOptPath(pkg, path, dexCodeIsa, compilerFilter,
                         profileUpdated, classLoaderContexts[i], dexoptFlags, sharedGid,
                         packageStats, options.isDowngrade());
